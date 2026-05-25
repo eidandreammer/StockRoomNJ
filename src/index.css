@@ -46,12 +46,13 @@ body.is-locked {
 
 button,
 input {
+  border-radius: 4px;
   font: inherit;
   letter-spacing: 0;
 }
 
 button {
-  border-radius: 0;
+  border-radius: 4px;
 }
 
 a {
