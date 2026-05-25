@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import catalogImage from './assets/collectibles-hero.png'
 import Masonry from './Masonry'
 import './App.css'
 
-const brandLogo = `${import.meta.env.BASE_URL}StockRoomNJ%20Logo.png`
+const brandLogo = `${import.meta.env.BASE_URL}segundo%20logo%20the%20stock%20room.png`
+const footerLogo = `${import.meta.env.BASE_URL}circle%20logo.png`
 const heroBackground = `${import.meta.env.BASE_URL}Images/13.png`
 const storeAddress = '66 Union Blvd, Wallington, NJ 07057'
+const storeEmail = 'thestockroomnj@gmail.com'
+const storePhone = '(609) 459-5069'
+const storePhoneHref = 'tel:+16094595069'
 const encodedStoreAddress = encodeURIComponent(storeAddress)
 const googleMapEmbedUrl = `https://www.google.com/maps?q=${encodedStoreAddress}&output=embed`
 const googleDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedStoreAddress}`
@@ -26,35 +29,21 @@ const galleryItems = Array.from({ length: 12 }, (_, index) => {
 
 const navLinks = [
   { label: 'Gallery', href: '#catalog' },
-  { label: 'Pokemon', href: '#categories' },
-  { label: 'Video Games', href: '#categories' },
-  { label: 'Collectibles', href: '#categories' },
+  { label: 'About Us', href: '#about-us' },
+  { label: 'Find Us', href: '#find-us' },
+  { label: 'Contact', href: '#contact' },
 ]
 
-const categories = [
+const socialLinks = [
   {
-    title: 'Pokemon TCG',
-    detail: 'Booster packs, singles, elite trainer boxes',
-    href: '#catalog',
-    position: '11% 58%',
+    label: 'Instagram',
+    href: 'https://www.instagram.com/stockroomnj/',
+    icon: 'instagram',
   },
   {
-    title: 'Video Games',
-    detail: 'Retro classics to modern releases',
-    href: '#catalog',
-    position: '58% 56%',
-  },
-  {
-    title: 'Action Figures & Statues',
-    detail: 'Display-ready figures and boxed releases',
-    href: '#catalog',
-    position: '83% 43%',
-  },
-  {
-    title: 'Limited Collectibles',
-    detail: 'Graded slabs, cases, pins, and hard-to-find drops',
-    href: '#catalog',
-    position: '48% 68%',
+    label: 'TikTok',
+    href: 'https://www.tiktok.com/@stockroomnj',
+    icon: 'tiktok',
   },
 ]
 
@@ -62,25 +51,6 @@ const hours = [
   ['Mon-Fri', '9:00 AM - 6:00 PM'],
   ['Saturday', 'Closed'],
   ['Sunday', 'Closed'],
-]
-
-const footerGroups = [
-  {
-    title: 'Customer Support',
-    links: ['Contact', 'Trade-Ins', 'Store Hours'],
-  },
-  {
-    title: 'Store Policy',
-    links: ['Returns', 'Authenticity', 'Condition Guide'],
-  },
-  {
-    title: 'Location',
-    links: ['Wallington, NJ', 'Store Hours', 'Directions', 'Events'],
-  },
-  {
-    title: 'Socials',
-    links: ['Instagram', 'TikTok', 'Discord', 'YouTube'],
-  },
 ]
 
 const icons = {
@@ -102,6 +72,20 @@ const icons = {
       <path d="M4 12h16" />
       <path d="M4 17h16" />
     </>
+  ),
+  instagram: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="M17.5 6.5h.01" />
+    </>
+  ),
+  tiktok: (
+    <path
+      d="M15.9 3.5c.4 2.6 1.9 4.1 4.4 4.3v3.3c-1.5.1-2.9-.3-4.2-1.1v5.6c0 3.4-2.1 5.6-5.4 5.6-3 0-5.2-1.9-5.2-4.7 0-3.1 2.7-5.1 6-4.5v3.5c-1.4-.4-2.4.2-2.4 1.2 0 .8.7 1.3 1.6 1.3 1.1 0 1.7-.7 1.7-2V3.5h3.5Z"
+      fill="currentColor"
+      stroke="none"
+    />
   ),
 }
 
@@ -237,8 +221,8 @@ function App() {
           .join(' ')}
       >
         <div className="header-inner">
-          <a className="brand" href="#top" aria-label="StockRoom NJ home">
-            <img className="brand-logo" src={brandLogo} alt="StockRoom NJ logo" />
+          <a className="brand header-brand" href="#top" aria-label="StockRoom NJ home">
+            <img className="brand-logo" src={brandLogo} alt="The Stock Room logo" />
           </a>
 
           <div className="header-right">
@@ -281,7 +265,7 @@ function App() {
             role="dialog"
           >
             <div className="modal-head">
-              <img className="brand-logo" src={brandLogo} alt="StockRoom NJ logo" />
+              <img className="brand-logo" src={brandLogo} alt="The Stock Room logo" />
               <button
                 aria-label="Close menu"
                 className="icon-button"
@@ -329,31 +313,32 @@ function App() {
                 <a className="button primary" href="#catalog">
                   View Gallery
                 </a>
-                <a className="button secondary" href="#location">
-                  Visit Store Location
+                <a className="button secondary" href="#find-us">
+                  Find Us
                 </a>
               </div>
             </div>
-
-            <dl className="hero-proof" aria-label="Store highlights">
-              <div>
-                <dt>Daily</dt>
-                <dd>Restocks</dd>
-              </div>
-              <div>
-                <dt>Local</dt>
-                <dd>Trade-ins</dd>
-              </div>
-              <div>
-                <dt>Rare</dt>
-                <dd>Drops</dd>
-              </div>
-            </dl>
           </div>
         </section>
 
-        <section className="section categories-section" id="categories">
-          
+        <section className="section about-section" id="about-us" aria-labelledby="about-title">
+          <div className="container about-grid">
+            <div>
+              <p className="eyebrow">About us</p>
+              <h2 id="about-title">A local spot for cards, games, and collectibles.</h2>
+            </div>
+            <div className="about-copy">
+              <p>
+                The Stock Room brings together Pokemon TCG, retro and modern games,
+                figures, and hard-to-find collectibles in a shop built for browsing.
+              </p>
+              <ul className="about-list">
+                <li>In-store finds rotate with new arrivals and trade-ins.</li>
+                <li>Collectors can inspect items before they buy.</li>
+                <li>Local pickups keep the experience simple and personal.</li>
+              </ul>
+            </div>
+          </div>
         </section>
 
         <section className="section gallery-section" id="catalog">
@@ -381,11 +366,11 @@ function App() {
           </div>
         </section>
 
-        <section className="section local-section" id="location">
+        <section className="section local-section" id="find-us" aria-labelledby="find-us-title">
           <div className="container local-grid">
             <div className="local-copy">
-              <p className="eyebrow">Local hub</p>
-              <h2>Stop in for drops, trade-ins, and Union Boulevard finds.</h2>
+              <p className="eyebrow">Find us</p>
+              <h2 id="find-us-title">Stop in for drops, trade-ins, and Union Boulevard finds.</h2>
               <p>
                 Browse the gallery, then visit the shop to inspect cards, test games,
                 and talk through new arrivals with the team.
@@ -428,50 +413,70 @@ function App() {
             </div>
           </div>
         </section>
+
+        
       </main>
 
       <footer className="site-footer" ref={footerRef}>
-        <div className="container footer-grid">
-          <div className="footer-brand">
-            <a className="brand" href="#top" aria-label="StockRoom NJ home">
-              <img className="brand-logo" src={brandLogo} alt="StockRoom NJ logo" />
-            </a>
-            <form
-              aria-label="Newsletter signup"
-              className="newsletter"
-              onSubmit={(event) => event.preventDefault()}
-            >
-              <label className="visually-hidden" htmlFor="newsletter-email">
-                Email address
-              </label>
-              <input
-                id="newsletter-email"
-                placeholder="Email address"
-                type="email"
-              />
-              <button aria-label="Submit newsletter signup" type="submit">
-                <Icon name="arrow" />
-              </button>
-            </form>
-          </div>
+        <div className="footer-menu-band">
+          <div className="container footer-menu-grid">
+            <div className="footer-brand">
+              <a className="brand footer-brand-link" href="#top" aria-label="StockRoom NJ home">
+                <img className="brand-logo" src={footerLogo} alt="The Stock Room logo" />
+              </a>
+              <p>Cards, games, figures, and collectible finds in Wallington.</p>
+            </div>
 
-          {footerGroups.map((group) => (
-            <div className="footer-column" key={group.title}>
-              <h2>{group.title}</h2>
+            <nav className="footer-nav" aria-label="Footer menu">
+              <h2>Footer Menu</h2>
               <ul>
-                {group.links.map((link) => (
-                  <li key={link}>
-                    <a href="#top">{link}</a>
+                {navLinks.map((link) => (
+                  <li key={link.label}>
+                    <a href={link.href}>{link.label}</a>
                   </li>
                 ))}
               </ul>
+            </nav>
+
+            <div className="footer-contact" id="contact">
+              <h2>Contact</h2>
+              <ul>
+                <li>
+                  <span>Phone</span>
+                  <a href={storePhoneHref}>{storePhone}</a>
+                </li>
+                <li>
+                  <span>Email</span>
+                  <a href={`mailto:${storeEmail}`}>{storeEmail}</a>
+                </li>
+                <li>
+                  <span>Direction</span>
+                  <a href={googleDirectionsUrl} rel="noreferrer" target="_blank">
+                    {storeAddress}
+                  </a>
+                </li>
+              </ul>
             </div>
-          ))}
+          </div>
+
+          <div className="container footer-bottom">
+            <p>© {new Date().getFullYear()} The Stock Room. Wallington, NJ.</p>
+            <div className="footer-social" aria-label="Social media">
+              {socialLinks.map((social) => (
+                <a
+                  key={social.label}
+                  aria-label={social.label}
+                  href={social.href}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <Icon name={social.icon} />
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="container footer-bottom">
-          <p>Copyright 2026 StockRoom NJ. All rights reserved.</p>
-          <p>Cards. Games. Figures. Local pickups.</p>
-        </div>
+        
       </footer>
     </div>
   )
