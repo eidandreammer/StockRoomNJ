@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import heroImage from './assets/collectibles-hero.png'
 import './App.css'
 
@@ -187,8 +187,14 @@ function Icon({ name, className = '' }) {
 function App() {
   const [activeFilter, setActiveFilter] = useState('All')
   const [cartCount, setCartCount] = useState(2)
+  const [headerState, setHeaderState] = useState({
+    isCompressed: false,
+    isHidden: false,
+  })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const lastScrollY = useRef(0)
+  const scrollFrame = useRef(null)
 
   const visibleProducts = useMemo(() => {
     if (activeFilter === 'All') {
@@ -217,6 +223,54 @@ function App() {
     return () => document.body.classList.remove('is-locked')
   }, [isMenuOpen, isSearchOpen])
 
+  useEffect(() => {
+    const updateHeader = () => {
+      const currentScrollY = Math.max(window.scrollY, 0)
+      const hero = document.querySelector('.hero-section')
+      const heroBottom = hero ? hero.offsetTop + hero.offsetHeight : window.innerHeight
+      const isScrollingDown = currentScrollY > lastScrollY.current
+      const nextState = {
+        isCompressed: currentScrollY > 24,
+        isHidden: isScrollingDown && currentScrollY > heroBottom + 48,
+      }
+
+      setHeaderState((currentState) => {
+        if (
+          currentState.isCompressed === nextState.isCompressed &&
+          currentState.isHidden === nextState.isHidden
+        ) {
+          return currentState
+        }
+
+        return nextState
+      })
+
+      lastScrollY.current = currentScrollY
+      scrollFrame.current = null
+    }
+
+    const handleScroll = () => {
+      if (scrollFrame.current !== null) {
+        return
+      }
+
+      scrollFrame.current = window.requestAnimationFrame(updateHeader)
+    }
+
+    updateHeader()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll)
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+
+      if (scrollFrame.current !== null) {
+        window.cancelAnimationFrame(scrollFrame.current)
+      }
+    }
+  }, [])
+
   const openSearch = () => {
     setIsMenuOpen(false)
     setIsSearchOpen(true)
@@ -233,47 +287,57 @@ function App() {
         Skip to content
       </a>
 
-      <header className="site-header">
+      <header
+        className={[
+          'site-header',
+          headerState.isCompressed ? 'is-compressed' : '',
+          headerState.isHidden ? 'is-hidden' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <div className="header-inner">
           <a className="brand" href="#top" aria-label="StockRoom NJ home">
             <img className="brand-logo" src={brandLogo} alt="StockROomNJ logo" />
           </a>
 
-          <nav className="desktop-nav" aria-label="Primary navigation">
-            {navLinks.map((link) => (
-              <a key={link.label} href={link.href}>
-                {link.label}
-              </a>
-            ))}
-          </nav>
+          <div className="header-right">
+            <nav className="desktop-nav" aria-label="Primary navigation">
+              {navLinks.map((link) => (
+                <a key={link.label} href={link.href}>
+                  {link.label}
+                </a>
+              ))}
+            </nav>
 
-          <div className="header-actions">
-            <button
-              aria-label="Open search"
-              className="icon-button"
-              type="button"
-              onClick={openSearch}
-            >
-              <Icon name="search" />
-            </button>
-            <button
-              aria-label={`${cartCount} items in cart`}
-              className="cart-button"
-              type="button"
-            >
-              <Icon name="cart" />
-              <span>{cartCount}</span>
-            </button>
-            <button
-              aria-controls="mobile-menu"
-              aria-expanded={isMenuOpen}
-              aria-label="Open menu"
-              className="icon-button menu-toggle"
-              type="button"
-              onClick={openMenu}
-            >
-              <Icon name="menu" />
-            </button>
+            <div className="header-actions">
+              <button
+                aria-label="Open search"
+                className="icon-button"
+                type="button"
+                onClick={openSearch}
+              >
+                <Icon name="search" />
+              </button>
+              <button
+                aria-label={`${cartCount} items in cart`}
+                className="cart-button"
+                type="button"
+              >
+                <Icon name="cart" />
+                <span>{cartCount}</span>
+              </button>
+              <button
+                aria-controls="mobile-menu"
+                aria-expanded={isMenuOpen}
+                aria-label="Open menu"
+                className="icon-button menu-toggle"
+                type="button"
+                onClick={openMenu}
+              >
+                <Icon name="menu" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
