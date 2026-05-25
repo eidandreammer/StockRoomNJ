@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import heroImage from './assets/collectibles-hero.png'
 import './App.css'
 
+const brandLogo = `${import.meta.env.BASE_URL}StockRoomNJ%20Logo.png`
+
 const navLinks = [
   { label: 'Shop All', href: '#catalog' },
   { label: 'Pokémon', href: '#categories' },
@@ -234,8 +236,7 @@ function App() {
       <header className="site-header">
         <div className="header-inner">
           <a className="brand" href="#top" aria-label="StockRoom NJ home">
-            <span className="brand-mark">SR</span>
-            <span className="brand-name">StockRoom NJ</span>
+            <img className="brand-logo" src={brandLogo} alt="StockROomNJ logo" />
           </a>
 
           <nav className="desktop-nav" aria-label="Primary navigation">
@@ -333,7 +334,7 @@ function App() {
             role="dialog"
           >
             <div className="modal-head">
-              <span className="brand-mark">SR</span>
+              <img className="brand-logo" src={brandLogo} alt="StockROomNJ logo" />
               <button
                 aria-label="Close menu"
                 className="icon-button"
@@ -550,8 +551,7 @@ function App() {
         <div className="container footer-grid">
           <div className="footer-brand">
             <a className="brand" href="#top" aria-label="StockRoom NJ home">
-              <span className="brand-mark">SR</span>
-              <span className="brand-name">StockRoom NJ</span>
+              <img className="brand-logo" src={brandLogo} alt="StockROomNJ logo" />
             </a>
             <form
               aria-label="Newsletter signup"
