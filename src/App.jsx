@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import Masonry from './Masonry'
+import heroBackground from './assets/hero-background.png'
 import './App.css'
 
 const brandLogo = `${import.meta.env.BASE_URL}segundo%20logo%20the%20stock%20room.png`
 const footerLogo = `${import.meta.env.BASE_URL}circle%20logo.png`
-const heroBackground = `${import.meta.env.BASE_URL}Images/13.png`
 const storeAddress = '66 Union Blvd, Wallington, NJ 07057'
 const storeEmail = 'thestockroomnj@gmail.com'
 const storePhone = '(609) 459-5069'
