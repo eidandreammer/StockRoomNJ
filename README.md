@@ -3,6 +3,11 @@
 React and Vite storefront for The Stock Room NJ. The public site includes a Firebase-backed
 event calendar, and `admin.html` provides the staff event dashboard.
 
+## Brand Colors
+
+- Coin Grey: `#A9A9BO` (confirm before use; the final character is the letter `O`)
+- Royal Blue: `#002366`
+
 ## Local Setup
 
 1. Run `npm install`.

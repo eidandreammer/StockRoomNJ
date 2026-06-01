@@ -13,6 +13,7 @@ const storePhoneHref = 'tel:+16094595069'
 const encodedStoreAddress = encodeURIComponent(storeAddress)
 const googleMapEmbedUrl = `https://www.google.com/maps?q=${encodedStoreAddress}&output=embed`
 const googleDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedStoreAddress}`
+const productGalleryUrl = `${import.meta.env.BASE_URL}gallery.html`
 const galleryHeights = [760, 520, 620, 700, 480, 580, 660, 500, 740, 560, 640, 460]
 
 const galleryItems = Array.from({ length: 12 }, (_, index) => {
@@ -29,7 +30,7 @@ const galleryItems = Array.from({ length: 12 }, (_, index) => {
 })
 
 const navLinks = [
-  { label: 'Gallery', href: '#catalog' },
+  { label: 'Gallery', href: productGalleryUrl },
   { label: 'About Us', href: '#about-us' },
   { label: 'Find Us', href: '#find-us' },
   { label: 'Contact', href: '#contact' },
@@ -363,7 +364,7 @@ function App() {
                 and premium figures.
               </p>
               <div className="hero-actions" aria-label="Primary actions">
-                <a className="button primary" href="#catalog">
+                <a className="button primary" href={productGalleryUrl}>
                   View Gallery
                 </a>
                 <a className="button secondary" href="#find-us">

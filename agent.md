@@ -28,6 +28,7 @@
 - Use real product, store, or brand imagery wherever possible.
 - Keep controls and layout stable across mobile and desktop; avoid text overflow in buttons and cards.
 - Match existing visual patterns: restrained borders, compact radii, and practical storefront navigation.
+- Brand colors: Coin Grey `#A9A9BO` (confirm before use; the final character is the letter `O`) and Royal Blue `#002366`.
 
 ## Deployment Notes
 
