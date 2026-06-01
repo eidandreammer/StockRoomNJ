@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Masonry from './Masonry'
+import EventsCalendar from './events/EventsCalendar'
 import heroBackground from './assets/hero-background.png'
 import './App.css'
 
@@ -32,6 +33,7 @@ const navLinks = [
   { label: 'About Us', href: '#about-us' },
   { label: 'Find Us', href: '#find-us' },
   { label: 'Contact', href: '#contact' },
+  { label: 'Events', href: '#events' },
 ]
 
 const socialLinks = [
@@ -465,7 +467,49 @@ function App() {
           </div>
         </section>
 
-        
+        <section className="section contact-section" id="contact" aria-labelledby="contact-title">
+          <div className="container contact-grid">
+            <div>
+              <p className="eyebrow">Contact us</p>
+              <h2 id="contact-title">Questions about the shop or an upcoming stop?</h2>
+            </div>
+            <div className="contact-methods">
+              <a className="contact-method" href={storePhoneHref}>
+                <span>Phone</span>
+                <strong>{storePhone}</strong>
+              </a>
+              <a className="contact-method" href={`mailto:${storeEmail}`}>
+                <span>Email</span>
+                <strong>{storeEmail}</strong>
+              </a>
+              <a
+                className="contact-method"
+                href={googleDirectionsUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <span>Store directions</span>
+                <strong>{storeAddress}</strong>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section className="section events-section" id="events" aria-labelledby="events-title">
+          <div className="container">
+            <div className="section-heading events-heading">
+              <div>
+                <p className="eyebrow">Where we will be</p>
+                <h2 id="events-title">Upcoming events and pop-up stops.</h2>
+              </div>
+              <p>
+                Switch between month, week, and day views to see where to find us and
+                what we are bringing.
+              </p>
+            </div>
+            <EventsCalendar />
+          </div>
+        </section>
       </main>
 
       <footer className="site-footer" ref={footerRef}>
@@ -489,7 +533,7 @@ function App() {
               </ul>
             </nav>
 
-            <div className="footer-contact" id="contact">
+            <div className="footer-contact">
               <h2>Contact</h2>
               <ul>
                 <li>

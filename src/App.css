@@ -552,6 +552,183 @@
   overflow-wrap: anywhere;
 }
 
+.events-section {
+  background: var(--color-surface);
+}
+
+.events-heading > p {
+  max-width: 610px;
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.events-calendar-shell {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  padding: 18px;
+}
+
+.calendar-message {
+  margin: 0 0 18px;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-accent-soft);
+  padding: 12px 14px;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.calendar-message.is-error {
+  border-color: #b42318;
+  background: #fef3f2;
+  color: #912018;
+}
+
+.events-calendar-shell .fc {
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.events-calendar-shell .fc .fc-button-primary {
+  border-color: var(--color-accent);
+  border-radius: 4px;
+  background: var(--color-accent);
+  font-weight: 750;
+  text-transform: capitalize;
+}
+
+.events-calendar-shell .fc .fc-button-primary:disabled {
+  border-color: var(--color-nav-coin-grey);
+  background: var(--color-nav-coin-grey);
+}
+
+.events-calendar-shell .fc .fc-button-primary:not(:disabled):hover,
+.events-calendar-shell .fc .fc-button-primary:not(:disabled):focus-visible {
+  border-color: #0048d4;
+  background: #0048d4;
+}
+
+.events-calendar-shell .fc .fc-daygrid-event,
+.events-calendar-shell .fc .fc-timegrid-event {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  cursor: pointer;
+}
+
+.events-calendar-shell .fc .fc-toolbar-title {
+  font-size: 1.45rem;
+}
+
+.event-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.event-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(16, 20, 29, 0.66);
+  cursor: pointer;
+}
+
+.event-detail-panel {
+  position: relative;
+  max-height: min(720px, calc(100svh - 40px));
+  width: min(620px, 100%);
+  overflow: auto;
+  border: 2px solid var(--color-nav-royal-blue);
+  border-radius: 4px;
+  background: var(--color-bg);
+  padding: 24px;
+  box-shadow: 0 24px 64px rgba(17, 17, 17, 0.22);
+}
+
+.event-detail-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.event-detail-head h3 {
+  margin: 0;
+  font-size: 1.68rem;
+  line-height: 1.12;
+}
+
+.event-close {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  padding: 8px 10px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.event-close:hover,
+.event-close:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.event-detail-list {
+  display: grid;
+  gap: 0;
+  margin: 24px 0 0;
+}
+
+.event-detail-list > div {
+  border-top: 1px solid var(--color-border);
+  padding: 14px 0;
+}
+
+.event-detail-list dt {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.event-detail-list dd {
+  display: grid;
+  gap: 6px;
+  margin: 7px 0 0;
+  color: var(--color-text);
+}
+
+.goods-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.goods-tag {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.event-description {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.event-directions {
+  margin-top: 22px;
+}
+
 .category-grid,
 .gallery-grid {
   display: grid;
@@ -989,6 +1166,20 @@ address {
     align-items: start;
   }
 
+  .events-calendar-shell .fc .fc-toolbar {
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .events-calendar-shell .fc .fc-toolbar.fc-header-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .events-calendar-shell .fc .fc-toolbar-chunk:nth-child(2) {
+    order: -1;
+    width: 100%;
+  }
+
   .about-grid,
   .contact-grid {
     grid-template-columns: 1fr;
@@ -1090,6 +1281,22 @@ address {
 
   .button {
     width: 100%;
+  }
+
+  .events-calendar-shell {
+    padding: 10px;
+  }
+
+  .events-calendar-shell .fc {
+    font-size: 0.78rem;
+  }
+
+  .events-calendar-shell .fc .fc-button {
+    padding: 0.35em 0.52em;
+  }
+
+  .event-detail-panel {
+    padding: 18px;
   }
 
   .section-heading h2,
