@@ -109,11 +109,11 @@ function Icon({ name, className = '' }) {
 
 function App() {
   const [headerState, setHeaderState] = useState({
-    isCompressed: false,
     isHidden: false,
   })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isFooterVisible, setIsFooterVisible] = useState(false)
+  const headerRef = useRef(null)
   const footerRef = useRef(null)
   const lastScrollY = useRef(0)
   const scrollFrame = useRef(null)
@@ -142,16 +142,50 @@ function App() {
       const hero = document.querySelector('.hero-section')
       const heroBottom = hero ? hero.offsetTop + hero.offsetHeight : window.innerHeight
       const isScrollingDown = currentScrollY > lastScrollY.current
+      const compressionProgress = Math.min(currentScrollY / 120, 1)
+      const headerSizes =
+        window.innerWidth <= 640
+          ? {
+              height: [96, 68],
+              logoHeight: [52, 42],
+              logoWidth: [120, 118],
+              actionSize: [42, 42],
+              socialSize: [36, 36],
+            }
+          : window.innerWidth <= 860
+            ? {
+                height: [96, 68],
+                logoHeight: [58, 42],
+                logoWidth: [166, 118],
+                actionSize: [46, 42],
+                socialSize: [40, 36],
+              }
+            : {
+                height: [122, 72],
+                logoHeight: [106, 62],
+                logoWidth: [240, 148],
+                actionSize: [50, 42],
+                socialSize: [42, 38],
+              }
       const nextState = {
-        isCompressed: currentScrollY > 24,
         isHidden: isScrollingDown && currentScrollY > heroBottom + 48,
       }
+      const interpolateSize = ([maximum, minimum]) =>
+        `${maximum - (maximum - minimum) * compressionProgress}px`
+
+      headerRef.current?.style.setProperty('--header-height', interpolateSize(headerSizes.height))
+      headerRef.current?.style.setProperty('--logo-height', interpolateSize(headerSizes.logoHeight))
+      headerRef.current?.style.setProperty('--logo-width', interpolateSize(headerSizes.logoWidth))
+      headerRef.current?.style.setProperty('--action-size', interpolateSize(headerSizes.actionSize))
+      headerRef.current?.style.setProperty('--social-size', interpolateSize(headerSizes.socialSize))
+      headerRef.current?.style.setProperty(
+        '--nav-font-size',
+        `${1.02 - 0.12 * compressionProgress}rem`,
+      )
+      headerRef.current?.style.setProperty('--header-shadow-alpha', 0.06 * compressionProgress)
 
       setHeaderState((currentState) => {
-        if (
-          currentState.isCompressed === nextState.isCompressed &&
-          currentState.isHidden === nextState.isHidden
-        ) {
+        if (currentState.isHidden === nextState.isHidden) {
           return currentState
         }
 
@@ -211,9 +245,9 @@ function App() {
       </a>
 
       <header
+        ref={headerRef}
         className={[
           'site-header',
-          headerState.isCompressed ? 'is-compressed' : '',
           headerState.isHidden ? 'is-hidden' : '',
           isFooterVisible ? 'is-footer-visible' : '',
         ]
@@ -221,9 +255,26 @@ function App() {
           .join(' ')}
       >
         <div className="header-inner">
-          <a className="brand header-brand" href="#top" aria-label="StockRoom NJ home">
-            <img className="brand-logo" src={brandLogo} alt="The Stock Room logo" />
-          </a>
+          <div className="header-left">
+            <nav className="header-social" aria-label="Social media">
+              {socialLinks.map((social) => (
+                <a
+                  key={social.label}
+                  aria-label={social.label}
+                  className="icon-button social-link"
+                  href={social.href}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <Icon name={social.icon} />
+                </a>
+              ))}
+            </nav>
+
+            <a className="brand header-brand" href="#top" aria-label="StockRoom NJ home">
+              <img className="brand-logo" src={brandLogo} alt="The Stock Room logo" />
+            </a>
+          </div>
 
           <div className="header-right">
             <nav className="desktop-nav" aria-label="Primary navigation">

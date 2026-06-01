@@ -32,12 +32,14 @@
   --logo-height: 106px;
   --logo-width: 240px;
   --action-size: 50px;
+  --social-size: 42px;
   --nav-font-size: 1.02rem;
+  --header-shadow-alpha: 0;
 
   position: sticky;
   top: 0;
   z-index: 50;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 2px solid var(--color-nav-royal-blue);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(18px);
   opacity: 1;
@@ -49,16 +51,7 @@
     box-shadow 220ms ease,
     visibility 0ms linear 0ms;
   will-change: transform;
-}
-
-.site-header.is-compressed {
-  --header-height: 72px;
-  --logo-height: 62px;
-  --logo-width: 148px;
-  --action-size: 42px;
-  --nav-font-size: 0.9rem;
-
-  box-shadow: 0 12px 30px rgba(17, 17, 17, 0.06);
+  box-shadow: 0 12px 30px rgba(17, 17, 17, var(--header-shadow-alpha));
 }
 
 .site-header.is-hidden {
@@ -85,7 +78,13 @@
   min-height: var(--header-height);
   width: min(calc(100% - 40px), 1440px);
   margin-inline: auto;
-  transition: min-height 260ms ease;
+}
+
+.header-left {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 18px;
 }
 
 .header-right {
@@ -111,9 +110,6 @@
   height: var(--logo-height);
   max-width: var(--logo-width);
   object-fit: contain;
-  transition:
-    height 260ms ease,
-    max-width 260ms ease;
 }
 
 .brand-name {
@@ -144,9 +140,7 @@
 .desktop-nav a {
   font-size: var(--nav-font-size);
   font-weight: 650;
-  transition:
-    color 160ms ease,
-    font-size 260ms ease;
+  transition: color 160ms ease;
 }
 
 .desktop-nav a:hover,
@@ -161,6 +155,12 @@
 }
 
 .header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-social {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -192,8 +192,6 @@
   width: var(--action-size);
   height: var(--action-size);
   transition:
-    width 260ms ease,
-    height 260ms ease,
     border-color 160ms ease,
     background-color 160ms ease,
     color 160ms ease,
@@ -204,8 +202,30 @@
   border-color: var(--color-text);
 }
 
+.social-link {
+  width: var(--social-size);
+  height: var(--social-size);
+  border-width: 2px;
+  border-color: var(--color-nav-coin-grey);
+  color: var(--color-muted);
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.social-link:hover,
+.social-link:focus-visible {
+  border-color: var(--color-nav-royal-blue);
+  color: var(--color-text);
+}
+
 .menu-toggle {
   display: none;
+  border-width: 2px;
+  border-color: var(--color-nav-coin-grey);
 }
 
 .mobile-menu {
@@ -224,7 +244,7 @@
 
 .drawer-panel {
   position: relative;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-nav-royal-blue);
   border-radius: 4px;
   background: var(--color-bg);
 }
@@ -239,6 +259,16 @@
 .modal-head .brand-logo {
   height: 54px;
   max-width: 82px;
+}
+
+.drawer-panel .icon-button {
+  border-width: 2px;
+  border-color: var(--color-nav-coin-grey);
+}
+
+.drawer-panel .icon-button:hover,
+.drawer-panel .icon-button:focus-visible {
+  border-color: var(--color-nav-royal-blue);
 }
 
 
@@ -269,14 +299,14 @@
 .drawer-nav {
   display: grid;
   margin-top: 44px;
-  border-top: 1px solid var(--color-border);
+  border-top: 2px solid var(--color-nav-coin-grey);
 }
 
 .drawer-nav a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 2px solid var(--color-nav-coin-grey);
   padding-block: 20px;
   color: var(--color-text);
   text-decoration: none;
@@ -905,17 +935,15 @@ address {
     --logo-height: 58px;
     --logo-width: 166px;
     --action-size: 46px;
-  }
-
-  .site-header.is-compressed {
-    --header-height: 68px;
-    --logo-height: 42px;
-    --logo-width: 118px;
-    --action-size: 42px;
+    --social-size: 40px;
   }
 
   .header-inner {
     gap: 16px;
+  }
+
+  .header-left {
+    gap: 14px;
   }
 
   .header-right {
@@ -1000,6 +1028,7 @@ address {
     --logo-height: 52px;
     --logo-width: 120px;
     --action-size: 42px;
+    --social-size: 36px;
 
     width: 100vw;
     max-width: 100vw;
@@ -1007,6 +1036,14 @@ address {
 
   .header-inner {
     justify-content: flex-start;
+  }
+
+  .header-left {
+    gap: 12px;
+  }
+
+  .header-social {
+    gap: 6px;
   }
 
   .header-right {
