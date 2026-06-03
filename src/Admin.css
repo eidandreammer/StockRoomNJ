@@ -1,0 +1,339 @@
+.admin-shell,
+.admin-auth-shell,
+.admin-state {
+  min-height: 100svh;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.admin-header,
+.admin-main {
+  width: min(calc(100% - 40px), 1180px);
+  margin-inline: auto;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px 0 20px;
+}
+
+.admin-header h1,
+.admin-panel h2,
+.admin-auth-card h1,
+.admin-state h1 {
+  margin: 0;
+  line-height: 1.08;
+}
+
+.admin-main {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 48px;
+}
+
+.admin-panel,
+.admin-auth-card,
+.admin-state {
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  padding: 22px;
+}
+
+.admin-panel-head,
+.admin-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-kicker {
+  margin: 0 0 7px;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  background: var(--color-accent);
+  color: #ffffff;
+  padding: 0 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.admin-button.is-secondary {
+  border-color: var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-editor,
+.occurrence-editor {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-editor fieldset {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  padding: 14px;
+}
+
+.admin-editor legend {
+  padding: 0 7px;
+  font-weight: 850;
+}
+
+.admin-editor label,
+.occurrence-editor label,
+.admin-auth-card label,
+.admin-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-editor label span,
+.occurrence-editor label span,
+.admin-auth-card label span,
+.admin-stack span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.admin-editor input,
+.admin-editor textarea,
+.admin-editor select,
+.occurrence-editor input,
+.occurrence-editor textarea,
+.admin-auth-card input {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  padding: 9px;
+  color: var(--color-text);
+  font: inherit;
+}
+
+.is-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-inline-options,
+.admin-check-grid,
+.admin-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.admin-inline-options label,
+.admin-check-grid label,
+.admin-weekdays label,
+.admin-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.admin-recurrence {
+  display: grid;
+  gap: 13px;
+}
+
+.admin-alert {
+  margin: 0;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-accent-soft);
+  padding: 11px 13px;
+}
+
+.admin-alert.is-error {
+  border-color: #b42318;
+  background: #fef3f2;
+  color: #912018;
+}
+
+.admin-filters {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.admin-filters button,
+.admin-text-button {
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.admin-filters button {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.admin-filters button.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.admin-text-button:hover,
+.admin-text-button:focus-visible {
+  color: var(--color-accent);
+}
+
+.admin-text-button.is-danger {
+  color: #b42318;
+}
+
+.admin-event-list,
+.occurrence-list {
+  display: grid;
+  gap: 0;
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-event-item,
+.occurrence-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 15px 0;
+}
+
+.admin-event-item h3 {
+  margin: 6px 0 0;
+}
+
+.admin-event-item p {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+}
+
+.admin-event-item span,
+.occurrence-item span,
+.admin-muted {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+}
+
+.admin-status {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 0.68rem !important;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-status.is-published {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.admin-status.is-draft {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.occurrence-editor {
+  margin-top: 18px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 16px;
+}
+
+.occurrence-editor h3 {
+  margin: 0;
+}
+
+.occurrence-item > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.occurrence-item.is-cancelled strong {
+  color: var(--color-muted);
+  text-decoration: line-through;
+}
+
+.admin-auth-shell,
+.admin-state {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.admin-auth-card,
+.admin-state {
+  display: grid;
+  width: min(440px, 100%);
+  gap: 15px;
+}
+
+.admin-auth-card p,
+.admin-state p {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.admin-auth-card a {
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 700px) {
+  .admin-header,
+  .admin-event-item,
+  .occurrence-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .is-wide {
+    grid-column: auto;
+  }
+}
