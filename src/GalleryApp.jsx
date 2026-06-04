@@ -1,8 +1,16 @@
+import { inventoryProducts } from './mockInventory'
+import SiteShell from './SiteChrome'
+import './App.css'
 import './Gallery.css'
 
-const baseUrl = import.meta.env.BASE_URL
-const brandLogo = `${baseUrl}segundo%20logo%20the%20stock%20room.png`
-const homeUrl = `${baseUrl}index.html`
+const priceFormatter = new Intl.NumberFormat('en-US', {
+  currency: 'USD',
+  style: 'currency',
+})
+
+const pokemonProducts = inventoryProducts
+  .filter((product) => product.categoryId === 'pokemon-tcg' || product.tags.includes('pokemon'))
+  .sort((firstProduct, secondProduct) => firstProduct.featureRank - secondProduct.featureRank)
 
 const categories = [
   {
@@ -17,6 +25,7 @@ const categories = [
     label: 'Pokemon',
     note: 'Pokemon TCG singles, sealed items, and collector finds.',
     images: [],
+    products: pokemonProducts,
   },
   {
     id: 'funko-pops',
@@ -46,29 +55,18 @@ const categories = [
 
 function GalleryApp() {
   return (
-    <div className="product-gallery-page">
-      <header className="gallery-header">
-        <div className="gallery-container gallery-header-inner">
-          <a className="gallery-brand" href={homeUrl} aria-label="StockRoom NJ home">
-            <img src={brandLogo} alt="The Stock Room logo" />
-          </a>
-          <a className="gallery-home-link" href={homeUrl}>
-            Back to home
-          </a>
-        </div>
-      </header>
-
-      <main>
+    <SiteShell currentPage="shop">
+      <main className="product-gallery-page" id="main-content">
         <section className="gallery-intro" aria-labelledby="gallery-title">
           <div className="gallery-container">
-            <p className="gallery-eyebrow">The Stock Room collection</p>
-            <h1 id="gallery-title">Browse the galleries.</h1>
+            <p className="gallery-eyebrow">The Stock Room shop</p>
+            <h1 id="gallery-title">Browse the shop.</h1>
             <p className="gallery-intro-copy">
-              Explore current finds by category. Check back for newly added photos
-              as the shop inventory rotates.
+              Explore current finds by category. Pokemon now has its own section
+              alongside the rest of the shop categories.
             </p>
 
-            <nav className="gallery-category-grid" aria-label="Gallery categories">
+            <nav className="gallery-category-grid" aria-label="Shop categories">
               {categories.map((category) => (
                 <a
                   className={`gallery-category-card${category.featured ? ' is-featured' : ''}`}
@@ -77,7 +75,7 @@ function GalleryApp() {
                 >
                   <span className="gallery-card-label">{category.label}</span>
                   <span>{category.note}</span>
-                  <strong>View gallery</strong>
+                  <strong>View section</strong>
                 </a>
               ))}
             </nav>
@@ -96,14 +94,41 @@ function GalleryApp() {
                 <div className="product-gallery-heading">
                   <div>
                     <p className="gallery-eyebrow">
-                      {category.featured ? 'Latest arrivals' : 'Product gallery'}
+                      {category.featured
+                        ? 'Latest arrivals'
+                        : category.id === 'pokemon'
+                          ? 'Pokemon section'
+                          : 'Shop section'}
                     </p>
                     <h2 id={`${category.id}-title`}>{category.label}</h2>
                   </div>
                   <a href="#gallery-title">Back to categories</a>
                 </div>
 
-                {category.images.length > 0 ? (
+                {category.products?.length > 0 ? (
+                  <div className="shop-product-grid">
+                    {category.products.map((product) => (
+                      <article className="shop-product-card" key={product.id}>
+                        <div className="shop-product-media">
+                          <img src={product.image} alt={product.name} loading="lazy" />
+                        </div>
+                        <div className="shop-product-content">
+                          <div>
+                            <span className="shop-product-category">
+                              {product.categoryName}
+                            </span>
+                            <h3>{product.name}</h3>
+                            <p>{product.description}</p>
+                          </div>
+                          <div className="shop-product-meta">
+                            <span>{product.condition}</span>
+                            <strong>{priceFormatter.format(product.price)}</strong>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : category.images.length > 0 ? (
                   <div className="product-image-grid">
                     {category.images.map((image) => (
                       <a href={image.src} key={image.src} target="_blank" rel="noreferrer">
@@ -122,14 +147,7 @@ function GalleryApp() {
           ))}
         </div>
       </main>
-
-      <footer className="gallery-footer">
-        <div className="gallery-container gallery-footer-inner">
-          <p>The Stock Room NJ</p>
-          <a href={homeUrl}>Return to the main site</a>
-        </div>
-      </footer>
-    </div>
+    </SiteShell>
   )
 }
 
