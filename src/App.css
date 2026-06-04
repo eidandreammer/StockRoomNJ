@@ -875,6 +875,18 @@
   line-height: 1.55;
 }
 
+.inventory-empty-state p:first-child {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: 850;
+}
+
+.inventory-empty-state span {
+  margin-top: 8px;
+  color: var(--color-muted);
+  font-size: 0.92rem;
+}
+
 .events-calendar-shell {
   --calendar-royal-blue-deep: #2446a5;
   --calendar-red: #d92d20;

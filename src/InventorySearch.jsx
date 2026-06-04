@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { inventoryProducts, productCategories } from './mockInventory'
+import { productCategories } from './mockInventory'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -11,8 +11,6 @@ const sortOptions = [
   { label: 'Price: Low to High', value: 'price-asc' },
   { label: 'Price: High to Low', value: 'price-desc' },
 ]
-
-const normalizeText = (value) => value.toString().trim().toLowerCase()
 
 const parsePriceInput = (value) => {
   const price = Number.parseFloat(value)
@@ -57,46 +55,6 @@ function InventorySearch() {
       minimum,
     }
   }, [maxPrice, minPrice])
-
-  const visibleProducts = useMemo(() => {
-    const activeQuery = normalizeText(debouncedQuery)
-
-    return inventoryProducts
-      .filter((product) => {
-        const searchableText = normalizeText(
-          [
-            product.name,
-            product.categoryName,
-            product.departmentName,
-            product.condition,
-            product.description,
-            ...product.tags,
-          ].join(' '),
-        )
-        const matchesQuery = !activeQuery || searchableText.includes(activeQuery)
-        const matchesCategory =
-          selectedCategory === 'all' ||
-          product.categoryId === selectedCategory ||
-          product.departmentId === selectedCategory
-        const matchesMinimum =
-          priceBounds.minimum === undefined || product.price >= priceBounds.minimum
-        const matchesMaximum =
-          priceBounds.maximum === undefined || product.price <= priceBounds.maximum
-
-        return matchesQuery && matchesCategory && matchesMinimum && matchesMaximum
-      })
-      .sort((firstProduct, secondProduct) => {
-        if (sortOrder === 'price-asc') {
-          return firstProduct.price - secondProduct.price
-        }
-
-        if (sortOrder === 'price-desc') {
-          return secondProduct.price - firstProduct.price
-        }
-
-        return firstProduct.featureRank - secondProduct.featureRank
-      })
-  }, [debouncedQuery, priceBounds, selectedCategory, sortOrder])
 
   const activeFilterLabels = useMemo(() => {
     const labels = []
@@ -255,8 +213,7 @@ function InventorySearch() {
           <div className="inventory-results-panel">
             <div className="inventory-results-head">
               <p>
-                <strong>{visibleProducts.length}</strong>{' '}
-                {visibleProducts.length === 1 ? 'result' : 'results'}
+                <strong>New Hot</strong>
               </p>
               {selectedCategoryOption && <span>{selectedCategoryOption.label}</span>}
             </div>
@@ -269,35 +226,10 @@ function InventorySearch() {
               </div>
             )}
 
-            {visibleProducts.length > 0 ? (
-              <div className="inventory-grid">
-                {visibleProducts.map((product) => (
-                  <article className="inventory-product-card" key={product.id}>
-                    <div className="inventory-product-media">
-                      <img src={product.image} alt={product.name} loading="lazy" />
-                    </div>
-                    <div className="inventory-product-content">
-                      <div>
-                        <span className="inventory-product-category">
-                          {product.categoryName}
-                        </span>
-                        <h3>{product.name}</h3>
-                        <p>{product.description}</p>
-                      </div>
-                      <div className="inventory-product-meta">
-                        <span>{product.condition}</span>
-                        <strong>{priceFormatter.format(product.price)}</strong>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="inventory-empty-state">
-                <h3>No matching products</h3>
-                <p>Adjust the search, category, sort, or price range to refresh the results.</p>
-              </div>
-            )}
+            <div className="inventory-empty-state">
+              <p>Photos for New Hot are coming soon.</p>
+              <span>New inventory images will appear here.</span>
+            </div>
           </div>
         </div>
       </div>
