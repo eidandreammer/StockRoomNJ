@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import InventorySearch from './InventorySearch'
 import Masonry from './Masonry'
 import EventsCalendar from './events/EventsCalendar'
 import heroBackground from './assets/hero-background.png'
@@ -31,6 +32,7 @@ const galleryItems = Array.from({ length: 12 }, (_, index) => {
 
 const navLinks = [
   { label: 'Shop', href: productGalleryUrl },
+  { label: 'Search', href: '#inventory-search' },
   { label: 'About Us', href: '#about-us' },
   { label: 'Find Us', href: '#find-us' },
   { label: 'Contact', href: '#contact' },
@@ -374,6 +376,8 @@ function App() {
             </div>
           </div>
         </section>
+
+        <InventorySearch />
 
         <section className="section about-section" id="about-us" aria-labelledby="about-title">
           <div className="container about-grid">

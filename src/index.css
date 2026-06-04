@@ -48,10 +48,16 @@ body.is-locked {
 }
 
 button,
-input {
+input,
+select {
   border-radius: 4px;
   font: inherit;
   letter-spacing: 0;
+}
+
+input,
+select {
+  min-width: 0;
 }
 
 button {

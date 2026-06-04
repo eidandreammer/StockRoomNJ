@@ -13,6 +13,12 @@ const categories = [
     images: [],
   },
   {
+    id: 'pokemon',
+    label: 'Pokemon',
+    note: 'Pokemon TCG singles, sealed items, and collector finds.',
+    images: [],
+  },
+  {
     id: 'funko-pops',
     label: 'Funko Pops',
     note: 'Collectible figures and character finds.',
