@@ -1,4 +1,3 @@
-import { inventoryProducts } from './mockInventory'
 import SiteShell from './SiteChrome'
 import './App.css'
 import './Gallery.css'
@@ -7,10 +6,6 @@ const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   style: 'currency',
 })
-
-const pokemonProducts = inventoryProducts
-  .filter((product) => product.categoryId === 'pokemon-tcg' || product.tags.includes('pokemon'))
-  .sort((firstProduct, secondProduct) => firstProduct.featureRank - secondProduct.featureRank)
 
 const categories = [
   {
@@ -25,7 +20,6 @@ const categories = [
     label: 'Pokemon',
     note: 'Pokemon TCG singles, sealed items, and collector finds.',
     images: [],
-    products: pokemonProducts,
   },
   {
     id: 'funko-pops',
