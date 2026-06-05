@@ -84,6 +84,7 @@ const getHomeSectionHref = (currentPage, sectionId) =>
   currentPage === 'home' ? `#${sectionId}` : `${homeUrl}#${sectionId}`
 
 const getNavLinks = (currentPage) => [
+  ...(currentPage === 'shop' ? [{ label: 'Home', href: getHomeHref(currentPage), page: 'home' }] : []),
   { label: 'Shop', href: productGalleryUrl, page: 'shop' },
   { label: 'Search', href: getHomeSectionHref(currentPage, 'inventory-search') },
   { label: 'About Us', href: getHomeSectionHref(currentPage, 'about-us') },

@@ -15,20 +15,17 @@ import EventsCalendar from './events/EventsCalendar'
 import heroBackground from './assets/hero-background.png'
 import './App.css'
 
-const galleryHeights = [760, 520, 620, 700, 480, 580, 660, 500, 740, 560, 640, 460]
+const galleryImage = `${import.meta.env.BASE_URL}Images/1.png`
 
-const galleryItems = Array.from({ length: 12 }, (_, index) => {
-  const imageNumber = index + 1
-  const imageSrc = `${import.meta.env.BASE_URL}Images/${imageNumber}.png`
-
-  return {
-    id: `gallery-${imageNumber}`,
-    alt: `StockRoom NJ gallery image ${imageNumber}`,
-    height: galleryHeights[index],
-    img: imageSrc,
-    url: imageSrc,
-  }
-})
+const galleryItems = [
+  {
+    id: 'gallery-1',
+    alt: 'StockRoom NJ gallery image 1',
+    height: 760,
+    img: galleryImage,
+    url: galleryImage,
+  },
+]
 
 function App() {
   return (
@@ -159,7 +156,7 @@ function App() {
           <div className="container contact-grid">
             <div>
               <p className="eyebrow">Contact us</p>
-              <h2 id="contact-title">Questions about the shop or an upcoming stop?</h2>
+              <h2 id="contact-title">Questions about the shop or an upcoming event?</h2>
             </div>
             <div className="contact-methods">
               <a className="contact-method" href={storePhoneHref}>
