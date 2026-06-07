@@ -96,10 +96,10 @@ const getNavLinks = (currentPage) => [
 function SiteHeader({ currentPage, isFooterVisible }) {
   const [headerState, setHeaderState] = useState({
     isHidden: false,
+    isPastHero: false,
   })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const headerRef = useRef(null)
-  const lastScrollY = useRef(0)
   const scrollFrame = useRef(null)
   const homeHref = getHomeHref(currentPage)
   const navLinks = getNavLinks(currentPage)
@@ -125,9 +125,8 @@ function SiteHeader({ currentPage, isFooterVisible }) {
   useEffect(() => {
     const updateHeader = () => {
       const currentScrollY = Math.max(window.scrollY, 0)
-      const hero = document.querySelector('.hero-section')
+      const hero = document.querySelector('.hero-section, .gallery-intro')
       const heroBottom = hero ? hero.offsetTop + hero.offsetHeight : window.innerHeight
-      const isScrollingDown = currentScrollY > lastScrollY.current
       const compressionProgress = Math.min(currentScrollY / 120, 1)
       const headerSizes =
         window.innerWidth <= 640
@@ -137,24 +136,37 @@ function SiteHeader({ currentPage, isFooterVisible }) {
               logoWidth: [120, 118],
               actionSize: [42, 42],
               socialSize: [36, 36],
+              navFont: [0.94, 0.88],
             }
-          : window.innerWidth <= 860
+          : window.innerWidth <= 980
             ? {
                 height: [96, 68],
                 logoHeight: [58, 42],
                 logoWidth: [166, 118],
                 actionSize: [46, 42],
                 socialSize: [40, 36],
+                navFont: [0.96, 0.88],
               }
-            : {
-                height: [122, 72],
-                logoHeight: [106, 62],
-                logoWidth: [240, 148],
-                actionSize: [50, 42],
-                socialSize: [42, 38],
-              }
+            : window.innerWidth <= 1180
+              ? {
+                  height: [112, 72],
+                  logoHeight: [86, 58],
+                  logoWidth: [200, 140],
+                  actionSize: [48, 42],
+                  socialSize: [40, 38],
+                  navFont: [0.96, 0.88],
+                }
+              : {
+                  height: [122, 72],
+                  logoHeight: [106, 62],
+                  logoWidth: [240, 148],
+                  actionSize: [50, 42],
+                  socialSize: [42, 38],
+                  navFont: [1.02, 0.9],
+                }
       const nextState = {
-        isHidden: isScrollingDown && currentScrollY > heroBottom + 48,
+        isHidden: false,
+        isPastHero: currentScrollY > heroBottom - 88,
       }
       const interpolateSize = ([maximum, minimum]) =>
         `${maximum - (maximum - minimum) * compressionProgress}px`
@@ -166,19 +178,19 @@ function SiteHeader({ currentPage, isFooterVisible }) {
       headerRef.current?.style.setProperty('--social-size', interpolateSize(headerSizes.socialSize))
       headerRef.current?.style.setProperty(
         '--nav-font-size',
-        `${1.02 - 0.12 * compressionProgress}rem`,
+        `${headerSizes.navFont[0] - (headerSizes.navFont[0] - headerSizes.navFont[1]) * compressionProgress}rem`,
       )
-      headerRef.current?.style.setProperty('--header-shadow-alpha', 0.06 * compressionProgress)
-
       setHeaderState((currentState) => {
-        if (currentState.isHidden === nextState.isHidden) {
+        if (
+          currentState.isHidden === nextState.isHidden &&
+          currentState.isPastHero === nextState.isPastHero
+        ) {
           return currentState
         }
 
         return nextState
       })
 
-      lastScrollY.current = currentScrollY
       scrollFrame.current = null
     }
 
@@ -215,6 +227,7 @@ function SiteHeader({ currentPage, isFooterVisible }) {
         className={[
           'site-header',
           headerState.isHidden ? 'is-hidden' : '',
+          headerState.isPastHero ? 'is-past-hero' : 'is-over-hero',
           isFooterVisible ? 'is-footer-visible' : '',
         ]
           .filter(Boolean)
