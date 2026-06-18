@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import ProductDetailModal from './ProductDetailModal'
 import SiteShell from './SiteChrome'
 import { shopCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
@@ -12,6 +13,7 @@ const priceFormatter = new Intl.NumberFormat('en-US', {
 
 function GalleryApp() {
   const { error, products, status } = usePublishedProducts()
+  const [selectedProduct, setSelectedProduct] = useState(null)
   const categories = useMemo(
     () =>
       shopCategories.map((category) => ({
@@ -87,9 +89,20 @@ function GalleryApp() {
                 {category.products.length > 0 ? (
                   <div className="shop-product-grid">
                     {category.products.map((product) => (
-                      <article className="shop-product-card" key={product.id}>
+                      <button
+                        aria-label={`View details for ${product.name}`}
+                        className="shop-product-card"
+                        key={product.id}
+                        type="button"
+                        onClick={() => setSelectedProduct(product)}
+                      >
                         <div className="shop-product-media">
                           <img src={product.image} alt={product.name} loading="lazy" />
+                          {product.imageCount > 1 && (
+                            <span className="shop-product-image-count">
+                              {product.imageCount} photos
+                            </span>
+                          )}
                         </div>
                         <div className="shop-product-content">
                           <div>
@@ -104,7 +117,7 @@ function GalleryApp() {
                             <strong>{priceFormatter.format(product.price)}</strong>
                           </div>
                         </div>
-                      </article>
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -117,6 +130,10 @@ function GalleryApp() {
             </section>
           ))}
         </div>
+        <ProductDetailModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
       </main>
     </SiteShell>
   )

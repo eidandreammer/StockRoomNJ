@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import ProductDetailModal from './ProductDetailModal'
 import { shopProductCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
 
@@ -21,6 +22,7 @@ const parsePriceInput = (value) => {
 
 function InventorySearch() {
   const { error, products, status } = usePublishedProducts()
+  const [selectedProduct, setSelectedProduct] = useState(null)
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -277,9 +279,20 @@ function InventorySearch() {
             {visibleProducts.length > 0 ? (
               <div className="inventory-grid">
                 {visibleProducts.map((product) => (
-                  <article className="inventory-product-card" key={product.id}>
+                  <button
+                    aria-label={`View details for ${product.name}`}
+                    className="inventory-product-card"
+                    key={product.id}
+                    type="button"
+                    onClick={() => setSelectedProduct(product)}
+                  >
                     <div className="inventory-product-media">
                       <img src={product.image} alt={product.name} loading="lazy" />
+                      {product.imageCount > 1 && (
+                        <span className="inventory-product-image-count">
+                          {product.imageCount} photos
+                        </span>
+                      )}
                     </div>
                     <div className="inventory-product-content">
                       <div>
@@ -294,7 +307,7 @@ function InventorySearch() {
                         <strong>{priceFormatter.format(product.price)}</strong>
                       </div>
                     </div>
-                  </article>
+                  </button>
                 ))}
               </div>
             ) : (
@@ -320,6 +333,10 @@ function InventorySearch() {
           </div>
         </div>
       </div>
+      <ProductDetailModal
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+      />
     </section>
   )
 }
