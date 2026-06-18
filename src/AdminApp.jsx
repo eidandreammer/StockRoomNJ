@@ -188,7 +188,7 @@ function CheckboxGroup({ values, onChange }) {
   )
 }
 
-function EventEditor({ record, onCancel, onSave }) {
+function EventEditor({ isSaving, record, onCancel, onSave }) {
   const [form, setForm] = useState(() => recordToForm(record))
   const [error, setError] = useState('')
 
@@ -372,8 +372,8 @@ function EventEditor({ record, onCancel, onSave }) {
         )}
       </fieldset>
 
-      <button className="admin-button" type="submit">
-        {record ? 'Save changes' : 'Save draft'}
+      <button className="admin-button" disabled={isSaving} type="submit">
+        {isSaving ? 'Saving...' : record ? 'Save changes' : 'Save draft'}
       </button>
     </form>
   )
@@ -555,7 +555,9 @@ function AdminApp() {
   const [filter, setFilter] = useState('all')
   const [editing, setEditing] = useState(null)
   const [managing, setManaging] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!auth || !db) {
@@ -600,51 +602,71 @@ function AdminApp() {
 
   const saveEvent = async (payload) => {
     setNotice('')
+    setError('')
+    setIsSaving(true)
 
-    if (!editing?.id) {
-      await addDoc(collection(db, 'events'), {
+    try {
+      if (!editing?.id) {
+        await addDoc(collection(db, 'events'), {
+          ...payload,
+          status: 'draft',
+          exceptions: [],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          createdBy: user.uid,
+          updatedBy: user.uid,
+        })
+        setNotice('Draft created.')
+        setEditing(null)
+        return
+      }
+
+      const currentRecord = records.find((record) => record.id === editing.id) ?? editing
+
+      if (!currentRecord?.schedule) {
+        throw new Error('Could not load the current event record. Refresh the admin page and try again.')
+      }
+
+      const recurrenceChanged =
+        recurrenceSignature(currentRecord.schedule) !== recurrenceSignature(payload.schedule)
+      const hasExceptions = (currentRecord.exceptions ?? []).length > 0
+
+      if (
+        recurrenceChanged &&
+        hasExceptions &&
+        !window.confirm('Changing this schedule will clear its per-date edits and cancellations. Continue?')
+      ) {
+        return
+      }
+
+      await updateDoc(doc(db, 'events', editing.id), {
         ...payload,
-        status: 'draft',
-        exceptions: [],
-        createdAt: serverTimestamp(),
+        ...(recurrenceChanged && hasExceptions ? { exceptions: [] } : {}),
         updatedAt: serverTimestamp(),
-        createdBy: user.uid,
         updatedBy: user.uid,
       })
-      setNotice('Draft created.')
+      setNotice('Event updated.')
       setEditing(null)
-      return
+    } catch (saveError) {
+      setError(saveError.message)
+    } finally {
+      setIsSaving(false)
     }
-
-    const currentRecord = records.find((record) => record.id === editing.id)
-    const recurrenceChanged =
-      recurrenceSignature(currentRecord.schedule) !== recurrenceSignature(payload.schedule)
-    const hasExceptions = (currentRecord.exceptions ?? []).length > 0
-
-    if (
-      recurrenceChanged &&
-      hasExceptions &&
-      !window.confirm('Changing this schedule will clear its per-date edits and cancellations. Continue?')
-    ) {
-      return
-    }
-
-    await updateDoc(doc(db, 'events', editing.id), {
-      ...payload,
-      ...(recurrenceChanged && hasExceptions ? { exceptions: [] } : {}),
-      updatedAt: serverTimestamp(),
-      updatedBy: user.uid,
-    })
-    setNotice('Event updated.')
-    setEditing(null)
   }
 
   const updateRecord = async (id, changes) => {
-    await updateDoc(doc(db, 'events', id), {
-      ...changes,
-      updatedAt: serverTimestamp(),
-      updatedBy: user.uid,
-    })
+    setNotice('')
+    setError('')
+
+    try {
+      await updateDoc(doc(db, 'events', id), {
+        ...changes,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+      })
+    } catch (updateError) {
+      setError(updateError.message)
+    }
   }
 
   const deleteRecord = async (record) => {
@@ -652,8 +674,15 @@ function AdminApp() {
       return
     }
 
-    await deleteDoc(doc(db, 'events', record.id))
-    setNotice('Event deleted.')
+    setNotice('')
+    setError('')
+
+    try {
+      await deleteDoc(doc(db, 'events', record.id))
+      setNotice('Event deleted.')
+    } catch (deleteError) {
+      setError(deleteError.message)
+    }
   }
 
   if (!isFirebaseConfigured || authState === 'unconfigured') {
@@ -707,12 +736,14 @@ function AdminApp() {
 
       <main className="admin-main">
         {notice && <p className="admin-alert">{notice}</p>}
+        {error && <p className="admin-alert is-error">{error}</p>}
 
         <AdminProducts user={user} />
 
         {editing && (
           <EventEditor
             key={editing.id ?? 'new-event'}
+            isSaving={isSaving}
             record={editing.id ? editing : null}
             onCancel={() => setEditing(null)}
             onSave={saveEvent}
