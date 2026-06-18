@@ -10,6 +10,13 @@ import {
   storePhone,
   storePhoneHref,
 } from './siteConfig'
+import { useShoppingCart } from './ShoppingCartContext'
+import { ShoppingCartProvider } from './ShoppingCartProvider'
+
+const priceFormatter = new Intl.NumberFormat('en-US', {
+  currency: 'USD',
+  style: 'currency',
+})
 
 const socialLinks = [
   {
@@ -29,6 +36,13 @@ const icons = {
     <>
       <path d="M5 12h14" />
       <path d="m13 6 6 6-6 6" />
+    </>
+  ),
+  cart: (
+    <>
+      <circle cx="9" cy="20" r="1.4" />
+      <circle cx="18" cy="20" r="1.4" />
+      <path d="M3 4h2.2l2.1 11.2a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 2-1.6L21.3 8H6" />
     </>
   ),
   close: (
@@ -78,6 +92,95 @@ export function Icon({ name, className = '' }) {
   )
 }
 
+function ShoppingCartDrawer({ isOpen, onClose }) {
+  const { items, removeItem, subtotal, totalItems } = useShoppingCart()
+
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <div className="shopping-cart-drawer is-open" id="shopping-cart">
+      <button
+        aria-label="Close shopping cart"
+        className="drawer-backdrop"
+        type="button"
+        onClick={onClose}
+      />
+      <aside
+        aria-labelledby="shopping-cart-title"
+        aria-modal="true"
+        className="cart-panel"
+        role="dialog"
+      >
+        <div className="cart-panel-head">
+          <div>
+            <p className="cart-kicker">Shopping cart</p>
+            <h2 id="shopping-cart-title">Your items</h2>
+          </div>
+          <button
+            aria-label="Close shopping cart"
+            className="icon-button"
+            type="button"
+            onClick={onClose}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+
+        {items.length > 0 ? (
+          <>
+            <ul className="cart-item-list" aria-label="Shopping cart items">
+              {items.map((item) => (
+                <li className="cart-item" key={item.id}>
+                  <div className="cart-item-media">
+                    {item.image ? (
+                      <img src={item.image} alt="" />
+                    ) : (
+                      <span>No image</span>
+                    )}
+                  </div>
+                  <div className="cart-item-content">
+                    <div>
+                      {item.categoryName && (
+                        <span className="cart-item-category">{item.categoryName}</span>
+                      )}
+                      <h3>{item.name}</h3>
+                      <p>
+                        {priceFormatter.format(item.price)}
+                        {item.quantity > 1 ? ` x ${item.quantity}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      className="cart-remove-button"
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="cart-summary">
+              <span>
+                {totalItems} item{totalItems === 1 ? '' : 's'}
+              </span>
+              <strong>{priceFormatter.format(subtotal)}</strong>
+            </div>
+          </>
+        ) : (
+          <div className="cart-empty-state">
+            <p>Your cart is empty.</p>
+            <span>Add items from the shop to see them here.</span>
+          </div>
+        )}
+      </aside>
+    </div>
+  )
+}
+
 const getHomeHref = (currentPage) => (currentPage === 'home' ? '#top' : `${homeUrl}#top`)
 
 const getHomeSectionHref = (currentPage, sectionId) =>
@@ -98,7 +201,9 @@ function SiteHeader({ currentPage, isFooterVisible }) {
     isHidden: false,
     isPastHero: false,
   })
+  const [isCartOpen, setIsCartOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const { totalItems } = useShoppingCart()
   const headerRef = useRef(null)
   const scrollFrame = useRef(null)
   const homeHref = getHomeHref(currentPage)
@@ -107,6 +212,7 @@ function SiteHeader({ currentPage, isFooterVisible }) {
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
+        setIsCartOpen(false)
         setIsMenuOpen(false)
       }
     }
@@ -117,10 +223,10 @@ function SiteHeader({ currentPage, isFooterVisible }) {
   }, [])
 
   useEffect(() => {
-    document.body.classList.toggle('is-locked', isMenuOpen)
+    document.body.classList.toggle('is-locked', isMenuOpen || isCartOpen)
 
     return () => document.body.classList.remove('is-locked')
-  }, [isMenuOpen])
+  }, [isCartOpen, isMenuOpen])
 
   useEffect(() => {
     const updateHeader = () => {
@@ -217,7 +323,13 @@ function SiteHeader({ currentPage, isFooterVisible }) {
   }, [])
 
   const openMenu = () => {
+    setIsCartOpen(false)
     setIsMenuOpen(true)
+  }
+
+  const openCart = () => {
+    setIsMenuOpen(false)
+    setIsCartOpen(true)
   }
 
   return (
@@ -269,6 +381,20 @@ function SiteHeader({ currentPage, isFooterVisible }) {
             </nav>
 
             <div className="header-actions">
+              <button
+                aria-controls="shopping-cart"
+                aria-expanded={isCartOpen}
+                aria-label={`Open shopping cart with ${totalItems} item${totalItems === 1 ? '' : 's'}`}
+                className="icon-button cart-toggle"
+                type="button"
+                onClick={openCart}
+              >
+                <Icon name="cart" />
+                {totalItems > 0 && (
+                  <span className="cart-count-badge">{totalItems}</span>
+                )}
+              </button>
+
               <button
                 aria-controls="mobile-menu"
                 aria-expanded={isMenuOpen}
@@ -326,6 +452,8 @@ function SiteHeader({ currentPage, isFooterVisible }) {
           </aside>
         </div>
       )}
+
+      <ShoppingCartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </>
   )
 }
@@ -424,15 +552,17 @@ function SiteShell({ children, currentPage = 'home' }) {
   }, [])
 
   return (
-    <div className="app-shell">
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
+    <ShoppingCartProvider>
+      <div className="app-shell">
+        <a className="skip-link" href="#main-content">
+          Skip to content
+        </a>
 
-      <SiteHeader currentPage={currentPage} isFooterVisible={isFooterVisible} />
-      {children}
-      <SiteFooter currentPage={currentPage} footerRef={footerRef} />
-    </div>
+        <SiteHeader currentPage={currentPage} isFooterVisible={isFooterVisible} />
+        {children}
+        <SiteFooter currentPage={currentPage} footerRef={footerRef} />
+      </div>
+    </ShoppingCartProvider>
   )
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useShoppingCart } from './ShoppingCartContext'
 import './ProductDetailModal.css'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
@@ -33,6 +34,7 @@ function productImages(product) {
 }
 
 function ProductDetailModal({ onClose, product }) {
+  const { addItem } = useShoppingCart()
   const [imageSelection, setImageSelection] = useState({ imageIndex: 0, productId: '' })
   const images = useMemo(() => productImages(product), [product])
   const activeImageIndex = imageSelection.productId === product?.id
@@ -125,6 +127,14 @@ function ProductDetailModal({ onClose, product }) {
           </div>
 
           <strong className="product-detail-price">{priceFormatter.format(product.price)}</strong>
+
+          <button
+            className="button primary product-detail-add-cart"
+            type="button"
+            onClick={() => addItem(product)}
+          >
+            Add to cart
+          </button>
 
           {product.description && (
             <p className="product-detail-description">{product.description}</p>

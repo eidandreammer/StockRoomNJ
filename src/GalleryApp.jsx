@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import ProductDetailModal from './ProductDetailModal'
 import SiteShell from './SiteChrome'
+import { useShoppingCart } from './ShoppingCartContext'
 import { shopCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
 import './App.css'
@@ -10,6 +11,53 @@ const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   style: 'currency',
 })
+
+function ShopProductCard({ onSelect, product }) {
+  const { addItem } = useShoppingCart()
+
+  return (
+    <article className="shop-product-card">
+      <button
+        aria-label={`View details for ${product.name}`}
+        className="shop-product-view"
+        type="button"
+        onClick={() => onSelect(product)}
+      >
+        <div className="shop-product-media">
+          <img src={product.image} alt={product.name} loading="lazy" />
+          {product.imageCount > 1 && (
+            <span className="shop-product-image-count">
+              {product.imageCount} photos
+            </span>
+          )}
+        </div>
+        <div className="shop-product-content">
+          <div>
+            <span className="shop-product-category">
+              {product.categoryName}
+            </span>
+            <h3>{product.name}</h3>
+            <p>{product.description}</p>
+          </div>
+          <div className="shop-product-meta">
+            <span>{product.categoryName}</span>
+            <strong>{priceFormatter.format(product.price)}</strong>
+          </div>
+        </div>
+      </button>
+      <div className="shop-product-actions">
+        <button
+          aria-label={`Add ${product.name} to shopping cart`}
+          className="button primary shop-add-cart"
+          type="button"
+          onClick={() => addItem(product)}
+        >
+          Add to cart
+        </button>
+      </div>
+    </article>
+  )
+}
 
 function GalleryApp() {
   const { error, products, status } = usePublishedProducts()
@@ -89,35 +137,11 @@ function GalleryApp() {
                 {category.products.length > 0 ? (
                   <div className="shop-product-grid">
                     {category.products.map((product) => (
-                      <button
-                        aria-label={`View details for ${product.name}`}
-                        className="shop-product-card"
+                      <ShopProductCard
                         key={product.id}
-                        type="button"
-                        onClick={() => setSelectedProduct(product)}
-                      >
-                        <div className="shop-product-media">
-                          <img src={product.image} alt={product.name} loading="lazy" />
-                          {product.imageCount > 1 && (
-                            <span className="shop-product-image-count">
-                              {product.imageCount} photos
-                            </span>
-                          )}
-                        </div>
-                        <div className="shop-product-content">
-                          <div>
-                            <span className="shop-product-category">
-                              {product.categoryName}
-                            </span>
-                            <h3>{product.name}</h3>
-                            <p>{product.description}</p>
-                          </div>
-                          <div className="shop-product-meta">
-                            <span>{product.categoryName}</span>
-                            <strong>{priceFormatter.format(product.price)}</strong>
-                          </div>
-                        </div>
-                      </button>
+                        product={product}
+                        onSelect={setSelectedProduct}
+                      />
                     ))}
                   </div>
                 ) : (

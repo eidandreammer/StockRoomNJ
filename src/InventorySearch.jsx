@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ProductDetailModal from './ProductDetailModal'
+import { useShoppingCart } from './ShoppingCartContext'
 import { shopProductCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
 
@@ -21,6 +22,7 @@ const parsePriceInput = (value) => {
 }
 
 function InventorySearch() {
+  const { addItem } = useShoppingCart()
   const { error, products, status } = usePublishedProducts()
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [query, setQuery] = useState('')
@@ -279,35 +281,49 @@ function InventorySearch() {
             {visibleProducts.length > 0 ? (
               <div className="inventory-grid">
                 {visibleProducts.map((product) => (
-                  <button
-                    aria-label={`View details for ${product.name}`}
+                  <article
                     className="inventory-product-card"
                     key={product.id}
-                    type="button"
-                    onClick={() => setSelectedProduct(product)}
                   >
-                    <div className="inventory-product-media">
-                      <img src={product.image} alt={product.name} loading="lazy" />
-                      {product.imageCount > 1 && (
-                        <span className="inventory-product-image-count">
-                          {product.imageCount} photos
-                        </span>
-                      )}
-                    </div>
-                    <div className="inventory-product-content">
-                      <div>
-                        <span className="inventory-product-category">
-                          {product.categoryName}
-                        </span>
-                        <h3>{product.name}</h3>
-                        <p>{product.description}</p>
+                    <button
+                      aria-label={`View details for ${product.name}`}
+                      className="inventory-product-view"
+                      type="button"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      <div className="inventory-product-media">
+                        <img src={product.image} alt={product.name} loading="lazy" />
+                        {product.imageCount > 1 && (
+                          <span className="inventory-product-image-count">
+                            {product.imageCount} photos
+                          </span>
+                        )}
                       </div>
-                      <div className="inventory-product-meta">
-                        <span>{product.categoryName}</span>
-                        <strong>{priceFormatter.format(product.price)}</strong>
+                      <div className="inventory-product-content">
+                        <div>
+                          <span className="inventory-product-category">
+                            {product.categoryName}
+                          </span>
+                          <h3>{product.name}</h3>
+                          <p>{product.description}</p>
+                        </div>
+                        <div className="inventory-product-meta">
+                          <span>{product.categoryName}</span>
+                          <strong>{priceFormatter.format(product.price)}</strong>
+                        </div>
                       </div>
+                    </button>
+                    <div className="inventory-product-actions">
+                      <button
+                        aria-label={`Add ${product.name} to shopping cart`}
+                        className="button primary inventory-add-cart"
+                        type="button"
+                        onClick={() => addItem(product)}
+                      >
+                        Add to cart
+                      </button>
                     </div>
-                  </button>
+                  </article>
                 ))}
               </div>
             ) : (

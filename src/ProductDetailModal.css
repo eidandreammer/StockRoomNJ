@@ -141,6 +141,11 @@
   line-height: 1;
 }
 
+.product-detail-add-cart {
+  width: 100%;
+  margin-top: 18px;
+}
+
 .product-detail-description {
   margin: 18px 0 0;
   color: var(--color-muted);
