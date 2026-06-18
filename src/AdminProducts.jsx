@@ -3,17 +3,23 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore'
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { db, storage } from './firebase'
+import BulkProductCreator from './BulkProductCreator'
+import { buildItemId, getItemType, itemTypes, nextItemSequence } from './itemTypes'
+import { db } from './firebase'
 import { getShopCategory, shopCategories } from './shopCatalog'
+import {
+  deleteStoredImages,
+  imageValidationError,
+  uploadProductImage,
+  uploadProductImages,
+} from './productImages'
 import { normalizeProduct, sortProducts } from './usePublishedProducts'
-
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -26,6 +32,8 @@ function emptyProductForm() {
     description: '',
     imageFile: null,
     imageUrl: '',
+    itemId: '',
+    itemTypeCode: '',
     name: '',
     price: '',
     status: 'published',
@@ -42,6 +50,8 @@ function recordToProductForm(record) {
     description: record.description ?? '',
     imageFile: null,
     imageUrl: record.imageUrl ?? record.image ?? '',
+    itemId: record.itemId ?? record.id ?? '',
+    itemTypeCode: record.itemTypeCode ?? record.type ?? '',
     name: record.name ?? '',
     price: record.price === undefined ? '' : String(record.price),
     status: record.status ?? 'published',
@@ -55,21 +65,6 @@ function normalizeAdminProduct(productDoc) {
     ...product,
     imageUrl: product.image,
   }
-}
-
-function sanitizeFileName(fileName) {
-  return fileName
-    .toLowerCase()
-    .replace(/[^a-z0-9.]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-}
-
-function randomId() {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID()
-  }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 function validateProductForm(form) {
@@ -95,15 +90,31 @@ function validateProductForm(form) {
     return 'Choose a product image.'
   }
 
-  if (form.imageFile && !form.imageFile.type.startsWith('image/')) {
-    return 'Choose an image file.'
-  }
-
-  if (form.imageFile && form.imageFile.size > MAX_IMAGE_SIZE) {
-    return 'Use an image smaller than 10 MB.'
+  if (form.imageFile) {
+    return imageValidationError(form.imageFile)
   }
 
   return ''
+}
+
+function mergePrimaryImage(currentImages, imageFields) {
+  if (!imageFields.imagePath) {
+    return currentImages
+  }
+
+  const remainingImages = currentImages.slice(1).map((image, index) => ({
+    ...image,
+    sortOrder: index + 1,
+  }))
+
+  return [
+    {
+      ...currentImages[0],
+      ...imageFields,
+      sortOrder: 0,
+    },
+    ...remainingImages,
+  ]
 }
 
 function ProductEditor({ isSaving, onCancel, onSave, record }) {
@@ -143,8 +154,8 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
     <form className="admin-editor admin-product-editor" onSubmit={handleSubmit}>
       <div className="admin-panel-head">
         <div>
-          <p className="admin-kicker">{record ? 'Edit product' : 'New product'}</p>
-          <h2>{record?.name ?? 'Add shop inventory'}</h2>
+          <p className="admin-kicker">Edit product</p>
+          <h2>{record?.name ?? 'Product'}</h2>
         </div>
         <button className="admin-button is-secondary" type="button" onClick={onCancel}>
           Close
@@ -155,7 +166,7 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
 
       <div className="admin-product-layout">
         <label className="admin-image-picker">
-          <span>Product image</span>
+          <span>Primary image</span>
           <input
             accept="image/*"
             type="file"
@@ -169,6 +180,13 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
         </label>
 
         <div className="admin-form-grid">
+          {form.itemId && (
+            <div className="admin-id-preview is-wide">
+              <span>Item ID</span>
+              <strong>{form.itemId}</strong>
+            </div>
+          )}
+
           <label className="is-wide">
             <span>Name</span>
             <input
@@ -176,6 +194,20 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
               value={form.name}
               onChange={(event) => update('name', event.target.value)}
             />
+          </label>
+          <label>
+            <span>Type</span>
+            <select
+              value={form.itemTypeCode}
+              onChange={(event) => update('itemTypeCode', event.target.value)}
+            >
+              <option value="">No type</option>
+              {itemTypes.map((type) => (
+                <option key={type.code} value={type.code}>
+                  {type.code} - {type.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             <span>Price</span>
@@ -223,53 +255,60 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
       </div>
 
       <button className="admin-button" disabled={isSaving} type="submit">
-        {isSaving ? 'Saving...' : record ? 'Save product' : 'Add product'}
+        {isSaving ? 'Saving...' : 'Save product'}
       </button>
     </form>
   )
 }
 
-async function uploadProductImage(file, productId) {
-  if (!storage) {
-    throw new Error('Firebase Storage is not configured. Add VITE_FIREBASE_STORAGE_BUCKET before uploading images.')
-  }
+async function reserveProductRef(existingProducts, typeCode, batchDate, reservedIds) {
+  let sequence = nextItemSequence(existingProducts, typeCode, batchDate, reservedIds)
 
-  const safeName = sanitizeFileName(file.name) || 'product-image'
-  const imageRef = ref(storage, `products/${productId}/${randomId()}-${safeName}`)
-  const uploadResult = await uploadBytes(imageRef, file, {
-    contentType: file.type || 'image/jpeg',
-  })
+  while (true) {
+    const itemId = buildItemId(typeCode, batchDate, sequence)
 
-  return {
-    imagePath: uploadResult.ref.fullPath,
-    imageUrl: await getDownloadURL(uploadResult.ref),
+    if (!reservedIds.has(itemId)) {
+      const productRef = doc(db, 'products', itemId)
+      const snapshot = await getDoc(productRef)
+
+      if (!snapshot.exists()) {
+        reservedIds.add(itemId)
+        return productRef
+      }
+    }
+
+    sequence += 1
   }
 }
 
-async function deleteStoredImage(imagePath) {
-  if (!storage || !imagePath) {
-    return
+function productImageSources(product) {
+  if (product.images.length > 0) {
+    return product.images
   }
 
-  try {
-    await deleteObject(ref(storage, imagePath))
-  } catch {
-    // The product record should not stay blocked if an old image is already gone.
-  }
+  return [product.imagePath].filter(Boolean)
 }
 
 function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
+  const typeLabel = product.type && product.typeLabel
+    ? `${product.type} ${product.typeLabel}`
+    : product.typeLabel || product.type
+
   return (
     <article className="admin-product-item">
       <div className="admin-product-thumb">
         {product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <span>No image</span>}
+        {product.imageCount > 1 && <span className="admin-product-image-count">{product.imageCount}</span>}
       </div>
       <div className="admin-product-details">
         <span className={`admin-status is-${product.status}`}>{product.status}</span>
         <h3>{product.name}</h3>
         <p>{product.description}</p>
         <div className="admin-product-meta">
+          {product.itemId && <span>{product.itemId}</span>}
+          {typeLabel && <span>{typeLabel}</span>}
           <span>{product.categoryName}</span>
+          {product.imageCount > 0 && <span>{product.imageCount} image{product.imageCount === 1 ? '' : 's'}</span>}
           <strong>{priceFormatter.format(product.price)}</strong>
         </div>
       </div>
@@ -291,9 +330,11 @@ function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
 function AdminProducts({ user }) {
   const [editing, setEditing] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [isBatchOpen, setIsBatchOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [products, setProducts] = useState([])
+  const [savingMessage, setSavingMessage] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -323,17 +364,36 @@ function AdminProducts({ user }) {
 
     try {
       const selectedCategory = getShopCategory(form.categoryId)
+      const selectedType = getItemType(form.itemTypeCode)
       const price = Number.parseFloat(form.price)
       const productRef = editing?.id ? doc(db, 'products', editing.id) : doc(collection(db, 'products'))
       const imageFields = form.imageFile ? await uploadProductImage(form.imageFile, productRef.id) : {}
+      const updatedImages = imageFields.imagePath
+        ? mergePrimaryImage(editing?.images ?? [], imageFields)
+        : editing?.images ?? []
       const payload = {
         categoryId: selectedCategory.id,
         categoryName: selectedCategory.label,
         description: form.description.trim(),
+        imageCount: updatedImages.length || (form.imageUrl ? 1 : 0),
+        images: updatedImages,
+        itemTypeCode: selectedType?.code ?? '',
         name: form.name.trim(),
         price: Math.round(price * 100) / 100,
-        searchText: `${form.name} ${form.description} ${selectedCategory.label}`.toLowerCase(),
+        searchText: [
+          form.itemId,
+          form.name,
+          form.description,
+          selectedCategory.label,
+          selectedType?.code,
+          selectedType?.label,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase(),
         status: form.status,
+        type: selectedType?.code ?? '',
+        typeLabel: selectedType?.label ?? '',
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
         ...imageFields,
@@ -342,7 +402,7 @@ function AdminProducts({ user }) {
       if (editing?.id) {
         await updateDoc(productRef, payload)
         if (imageFields.imagePath && editing.imagePath && editing.imagePath !== imageFields.imagePath) {
-          await deleteStoredImage(editing.imagePath)
+          await deleteStoredImages([editing.imagePath])
         }
         setNotice('Product updated.')
       } else {
@@ -362,6 +422,93 @@ function AdminProducts({ user }) {
     }
   }
 
+  const saveGroupedProducts = async (groupedDrafts, { batchDate }) => {
+    if (!db) {
+      throw new Error('Firebase is not configured.')
+    }
+
+    setIsSaving(true)
+    setSavingMessage('')
+    setNotice('')
+    setError('')
+
+    const reservedIds = new Set()
+    let savedCount = 0
+
+    try {
+      for (const [index, groupedDraft] of groupedDrafts.entries()) {
+        const selectedType = getItemType(groupedDraft.draft.itemTypeCode)
+
+        if (!selectedType) {
+          throw new Error('Every draft needs a valid item type.')
+        }
+
+        const productRef = await reserveProductRef(
+          products,
+          selectedType.code,
+          batchDate,
+          reservedIds,
+        )
+        const selectedCategory = getShopCategory(groupedDraft.draft.categoryId || selectedType.categoryId)
+        const price = Number.parseFloat(groupedDraft.draft.price)
+        let uploadedImages = []
+
+        setSavingMessage(`Saving ${index + 1} of ${groupedDrafts.length}: ${productRef.id}`)
+
+        try {
+          uploadedImages = await uploadProductImages(groupedDraft.files, productRef.id)
+          const primaryImage = uploadedImages[0]
+
+          await setDoc(productRef, {
+            categoryId: selectedCategory.id,
+            categoryName: selectedCategory.label,
+            createdAt: serverTimestamp(),
+            createdBy: user.uid,
+            description: groupedDraft.draft.description.trim(),
+            imageCount: uploadedImages.length,
+            imagePath: primaryImage?.imagePath ?? '',
+            imageUrl: primaryImage?.imageUrl ?? '',
+            images: uploadedImages,
+            itemId: productRef.id,
+            itemTypeCode: selectedType.code,
+            name: groupedDraft.draft.name.trim(),
+            price: Math.round(price * 100) / 100,
+            searchText: [
+              productRef.id,
+              groupedDraft.draft.name,
+              groupedDraft.draft.description,
+              selectedCategory.label,
+              selectedType.code,
+              selectedType.label,
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase(),
+            status: groupedDraft.draft.status || 'draft',
+            type: selectedType.code,
+            typeLabel: selectedType.label,
+            updatedAt: serverTimestamp(),
+            updatedBy: user.uid,
+          })
+        } catch (groupError) {
+          await deleteStoredImages(uploadedImages)
+          throw groupError
+        }
+
+        savedCount += 1
+      }
+
+      setIsBatchOpen(false)
+      setNotice(`${savedCount} product draft${savedCount === 1 ? '' : 's'} saved.`)
+    } catch (saveError) {
+      setError(saveError.message)
+      throw saveError
+    } finally {
+      setIsSaving(false)
+      setSavingMessage('')
+    }
+  }
+
   const toggleProductStatus = async (product) => {
     await updateDoc(doc(db, 'products', product.id), {
       status: product.status === 'published' ? 'draft' : 'published',
@@ -376,7 +523,7 @@ function AdminProducts({ user }) {
     }
 
     await deleteDoc(doc(db, 'products', product.id))
-    await deleteStoredImage(product.imagePath)
+    await deleteStoredImages(productImageSources(product))
     setNotice('Product deleted.')
   }
 
@@ -387,19 +534,36 @@ function AdminProducts({ user }) {
           <p className="admin-kicker">Shop inventory</p>
           <h2>Products</h2>
         </div>
-        <button className="admin-button" type="button" onClick={() => setEditing({})}>
-          New product
+        <button
+          className="admin-button"
+          type="button"
+          onClick={() => {
+            setEditing(null)
+            setIsBatchOpen(true)
+          }}
+        >
+          New products
         </button>
       </div>
 
       {notice && <p className="admin-alert">{notice}</p>}
       {error && <p className="admin-alert is-error">{error}</p>}
 
+      {isBatchOpen && (
+        <BulkProductCreator
+          existingProducts={products}
+          isSaving={isSaving}
+          savingMessage={savingMessage}
+          onCancel={() => setIsBatchOpen(false)}
+          onSaveGroups={saveGroupedProducts}
+        />
+      )}
+
       {editing && (
         <ProductEditor
-          key={editing.id ?? 'new-product'}
+          key={editing.id}
           isSaving={isSaving}
-          record={editing.id ? editing : null}
+          record={editing}
           onCancel={() => setEditing(null)}
           onSave={saveProduct}
         />
@@ -425,7 +589,10 @@ function AdminProducts({ user }) {
             key={product.id}
             product={product}
             onDelete={deleteProduct}
-            onEdit={setEditing}
+            onEdit={(nextProduct) => {
+              setIsBatchOpen(false)
+              setEditing(nextProduct)
+            }}
             onToggleStatus={toggleProductStatus}
           />
         ))}

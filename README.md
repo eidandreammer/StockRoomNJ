@@ -30,16 +30,19 @@ run `npm run emulators`, set
    checked-in Firestore and Storage rules with `npm run deploy:rules`.
 
 Public visitors can read only published products and published events. Approved staff can
-manage inventory and events after signing in through `admin.html`. New products are
-published by default, while new events start as drafts and must be published explicitly.
+manage inventory and events after signing in through `admin.html`. New grouped products
+start as drafts unless a staff member marks them published, while new events start as
+drafts and must be published explicitly.
 
 ## Product Workflow
 
 1. Open `admin.html` and sign in with a provisioned staff account.
-2. Choose **New product**, upload an image, add the name, price, description, and shop
-   section, then save it.
-3. Use **Draft** or **Unpublish** when a product should stay hidden from visitors.
-4. Products marked **Published** appear in `gallery.html` and the storefront search.
+2. Choose **New products**, upload any number of images, create color-coded image
+   groups, then choose **Next**.
+3. Fill in each group from the draft queue. The dashboard recommends the item type from
+   the group image count and generates item IDs like `FK-061826-01`.
+4. Save the drafts, then publish the products that should appear in `gallery.html` and
+   the storefront search.
 
 ## Event Workflow
 

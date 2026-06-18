@@ -20,6 +20,22 @@ function timestampToMillis(value) {
 
 export function normalizeProduct(productDoc) {
   const data = productDoc.data()
+  const images = Array.isArray(data.images)
+    ? data.images
+        .map((image, index) => ({
+          contentType: image.contentType ?? '',
+          fileName: image.fileName ?? '',
+          imagePath: image.imagePath ?? '',
+          imageUrl: image.imageUrl ?? image.url ?? '',
+          size: Number(image.size) || 0,
+          sortOrder: Number.isFinite(Number(image.sortOrder)) ? Number(image.sortOrder) : index,
+        }))
+        .filter((image) => image.imageUrl || image.imagePath)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+    : []
+  const primaryImage = images[0]
+  const imageUrl = data.imageUrl || data.image || primaryImage?.imageUrl || ''
+  const imagePath = data.imagePath || primaryImage?.imagePath || ''
 
   return {
     id: productDoc.id,
@@ -27,11 +43,17 @@ export function normalizeProduct(productDoc) {
     categoryName: data.categoryName ?? '',
     createdAt: data.createdAt ?? null,
     description: data.description ?? '',
-    image: data.imageUrl ?? data.image ?? '',
-    imagePath: data.imagePath ?? '',
+    image: imageUrl,
+    imageCount: Number(data.imageCount) || images.length || (imageUrl ? 1 : 0),
+    imagePath,
+    images,
+    itemId: data.itemId ?? productDoc.id,
+    itemTypeCode: data.itemTypeCode ?? data.type ?? '',
     name: data.name ?? '',
     price: Number(data.price) || 0,
     status: data.status ?? 'draft',
+    type: data.type ?? data.itemTypeCode ?? '',
+    typeLabel: data.typeLabel ?? '',
     updatedAt: data.updatedAt ?? null,
   }
 }

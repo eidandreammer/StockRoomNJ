@@ -109,6 +109,9 @@ function InventorySearch() {
         }
 
         return [
+          product.itemId,
+          product.type,
+          product.typeLabel,
           product.name,
           product.categoryName,
           product.description,
