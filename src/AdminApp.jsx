@@ -12,6 +12,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured } from './firebase'
+import AdminProducts from './AdminProducts'
 import {
   GOODS_OPTIONS,
   STORE_TIME_ZONE,
@@ -534,8 +535,8 @@ function Login() {
     <main className="admin-auth-shell">
       <form className="admin-auth-card" onSubmit={handleSubmit}>
         <p className="admin-kicker">StockRoom NJ</p>
-        <h1>Event dashboard</h1>
-        <p>Sign in with a provisioned staff account to update the public calendar.</p>
+        <h1>Admin dashboard</h1>
+        <p>Sign in with a provisioned staff account to manage shop inventory and events.</p>
         {error && <p className="admin-alert is-error">{error}</p>}
         <label><span>Email</span><input required autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label><span>Password</span><input required autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
@@ -548,6 +549,7 @@ function Login() {
 
 function AdminApp() {
   const [authState, setAuthState] = useState(isFirebaseConfigured ? 'loading' : 'unconfigured')
+  const [authError, setAuthError] = useState('')
   const [user, setUser] = useState(null)
   const [records, setRecords] = useState([])
   const [filter, setFilter] = useState('all')
@@ -562,14 +564,20 @@ function AdminApp() {
 
     return onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser)
+      setAuthError('')
 
       if (!nextUser) {
         setAuthState('signed-out')
         return
       }
 
-      const adminDoc = await getDoc(doc(db, 'admins', nextUser.uid))
-      setAuthState(adminDoc.exists() ? 'authorized' : 'unauthorized')
+      try {
+        const adminDoc = await getDoc(doc(db, 'admins', nextUser.uid))
+        setAuthState(adminDoc.exists() ? 'authorized' : 'unauthorized')
+      } catch (error) {
+        setAuthError(error.message)
+        setAuthState('verification-error')
+      }
     })
   }, [])
 
@@ -665,6 +673,20 @@ function AdminApp() {
       <main className="admin-state">
         <h1>Staff access required</h1>
         <p>This account is signed in but is not listed in the Firebase <code>admins</code> collection.</p>
+        <p>Create a Firestore document at <code>admins/{user?.uid}</code> with <code>enabled: true</code>.</p>
+        <p>Signed-in UID: <code>{user?.uid}</code></p>
+        <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>
+      </main>
+    )
+  }
+
+  if (authState === 'verification-error') {
+    return (
+      <main className="admin-state">
+        <h1>Could not verify staff access</h1>
+        <p>Firebase Auth signed in, but Firestore could not read the matching admin document.</p>
+        <p>Signed-in UID: <code>{user?.uid}</code></p>
+        {authError && <p className="admin-alert is-error">{authError}</p>}
         <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>
       </main>
     )
@@ -675,7 +697,7 @@ function AdminApp() {
       <header className="admin-header">
         <div>
           <p className="admin-kicker">StockRoom NJ</p>
-          <h1>Event dashboard</h1>
+          <h1>Admin dashboard</h1>
         </div>
         <div className="admin-row">
           <a className="admin-button is-secondary" href="./">View storefront</a>
@@ -685,6 +707,8 @@ function AdminApp() {
 
       <main className="admin-main">
         {notice && <p className="admin-alert">{notice}</p>}
+
+        <AdminProducts user={user} />
 
         {editing && (
           <EventEditor

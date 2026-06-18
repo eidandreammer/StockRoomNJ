@@ -1,7 +1,7 @@
 # StockRoom NJ
 
-React and Vite storefront for The Stock Room NJ. The public site includes a Firebase-backed
-event calendar, and `admin.html` provides the staff event dashboard.
+React and Vite storefront for The Stock Room NJ. The public site includes Firebase-backed
+shop inventory and an event calendar, and `admin.html` provides the staff dashboard.
 
 ## Brand Colors
 
@@ -13,7 +13,7 @@ event calendar, and `admin.html` provides the staff event dashboard.
 1. Run `npm install`.
 2. Copy `.env.example` to `.env` and fill in the Firebase web app values.
 3. Run `npm run dev`.
-4. Open `/` for the storefront or `/admin.html` for the event dashboard.
+4. Open `/` for the storefront, `/gallery.html` for the shop, or `/admin.html` for the dashboard.
 
 The Firebase emulator requires JDK 21 or newer. To develop against local Firebase services,
 run `npm run emulators`, set
@@ -22,16 +22,24 @@ run `npm run emulators`, set
 ## Firebase Setup
 
 1. Create a Firebase project and register a web app.
-2. Enable Firestore and Email/Password authentication.
+2. Enable Firestore, Firebase Storage, and Email/Password authentication.
 3. Create each staff account in Firebase Console under Authentication.
 4. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
    may contain `{ "enabled": true }`; authorization is based on the document existing.
 5. Run `firebase login`, select the project with `firebase use --add`, and deploy the
-   checked-in rules with `npm run deploy:rules`.
+   checked-in Firestore and Storage rules with `npm run deploy:rules`.
 
-Public visitors can read only published events. Approved staff can read drafts and manage
-events after signing in through `admin.html`. New events start as drafts and must be
-published explicitly.
+Public visitors can read only published products and published events. Approved staff can
+manage inventory and events after signing in through `admin.html`. New products are
+published by default, while new events start as drafts and must be published explicitly.
+
+## Product Workflow
+
+1. Open `admin.html` and sign in with a provisioned staff account.
+2. Choose **New product**, upload an image, add the name, price, description, and shop
+   section, then save it.
+3. Use **Draft** or **Unpublish** when a product should stay hidden from visitors.
+4. Products marked **Published** appear in `gallery.html` and the storefront search.
 
 ## Event Workflow
 
@@ -48,5 +56,6 @@ published explicitly.
 - `npm run lint`: lint JavaScript and JSX.
 - `npm test`: run event-model unit tests.
 - `npm run test:rules`: run Firestore security-rule tests through the Firestore emulator.
-- `npm run build`: build both `index.html` and `admin.html`.
+- `npm run build`: build `index.html`, `gallery.html`, and `admin.html`.
+- `npm run deploy:rules`: deploy Firestore and Storage security rules.
 - `npm run deploy`: build and publish the static output to GitHub Pages.

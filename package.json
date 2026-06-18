@@ -12,8 +12,8 @@
     "preview": "vite preview",
     "test": "vitest run tests/eventModel.test.js",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/firestore.rules.test.js\"",
-    "emulators": "firebase emulators:start --only auth,firestore",
-    "deploy:rules": "firebase deploy --only firestore:rules"
+    "emulators": "firebase emulators:start --only auth,firestore,storage",
+    "deploy:rules": "firebase deploy --project stockroomnj-10e7d --only firestore:rules,storage"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",

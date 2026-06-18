@@ -141,6 +141,115 @@
   font: inherit;
 }
 
+.admin-product-editor {
+  margin-top: 18px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 18px;
+}
+
+.admin-product-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-image-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-image-picker img,
+.admin-image-picker strong {
+  display: grid;
+  width: 100%;
+  min-height: 220px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+.admin-image-picker img {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+  object-fit: cover;
+}
+
+.admin-product-list {
+  display: grid;
+  gap: 0;
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-product-item {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  padding: 15px 0;
+}
+
+.admin-product-thumb {
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  aspect-ratio: 1;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.admin-product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-product-details {
+  min-width: 0;
+}
+
+.admin-product-details h3 {
+  margin: 7px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-product-details p {
+  display: -webkit-box;
+  margin: 6px 0 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.admin-product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  color: var(--color-muted);
+  font-size: 0.84rem;
+}
+
+.admin-product-meta strong {
+  color: var(--color-text);
+}
+
+.admin-product-actions {
+  justify-content: end;
+}
+
 .is-wide {
   grid-column: 1 / -1;
 }
@@ -331,6 +440,19 @@
 
   .admin-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-product-layout,
+  .admin-product-item {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-product-thumb {
+    width: min(100%, 220px);
+  }
+
+  .admin-product-actions {
+    justify-content: start;
   }
 
   .is-wide {

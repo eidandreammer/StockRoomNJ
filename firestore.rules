@@ -12,6 +12,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /products/{productId} {
+      allow get, list: if isAdmin() || resource.data.status == 'published';
+      allow create, update, delete: if isAdmin();
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;

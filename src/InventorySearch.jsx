@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { productCategories } from './mockInventory'
+import { shopProductCategories } from './shopCatalog'
+import { usePublishedProducts } from './usePublishedProducts'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -19,6 +20,7 @@ const parsePriceInput = (value) => {
 }
 
 function InventorySearch() {
+  const { error, products, status } = usePublishedProducts()
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -35,7 +37,7 @@ function InventorySearch() {
   }, [query])
 
   const selectedCategoryOption = useMemo(
-    () => productCategories.find((category) => category.id === selectedCategory),
+    () => shopProductCategories.find((category) => category.id === selectedCategory),
     [selectedCategory],
   )
 
@@ -85,6 +87,49 @@ function InventorySearch() {
     return labels
   }, [debouncedQuery, priceBounds, selectedCategory, selectedCategoryOption, sortOrder])
 
+  const visibleProducts = useMemo(() => {
+    const normalizedQuery = debouncedQuery.toLowerCase()
+
+    return products
+      .filter((product) => {
+        if (selectedCategory !== 'all' && product.categoryId !== selectedCategory) {
+          return false
+        }
+
+        if (priceBounds.minimum !== undefined && product.price < priceBounds.minimum) {
+          return false
+        }
+
+        if (priceBounds.maximum !== undefined && product.price > priceBounds.maximum) {
+          return false
+        }
+
+        if (!normalizedQuery) {
+          return true
+        }
+
+        return [
+          product.name,
+          product.categoryName,
+          product.description,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(normalizedQuery)
+      })
+      .sort((a, b) => {
+        if (sortOrder === 'price-asc') {
+          return a.price - b.price
+        }
+
+        if (sortOrder === 'price-desc') {
+          return b.price - a.price
+        }
+
+        return 0
+      })
+  }, [debouncedQuery, priceBounds, products, selectedCategory, sortOrder])
+
   const handleSearchSubmit = (event) => {
     event.preventDefault()
     setDebouncedQuery(query.trim())
@@ -112,7 +157,7 @@ function InventorySearch() {
             <h2 id="inventory-search-title">Find cards, games, and collectibles.</h2>
           </div>
           <p>
-            Search local mock stock by product name, category, condition, tag, and price.
+            Search current shop stock by product name, category, description, and price.
           </p>
         </div>
 
@@ -153,7 +198,7 @@ function InventorySearch() {
                 onChange={(event) => setSelectedCategory(event.target.value)}
                 value={selectedCategory}
               >
-                {productCategories.map((category) => (
+                {shopProductCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.label}
                   </option>
@@ -213,7 +258,7 @@ function InventorySearch() {
           <div className="inventory-results-panel">
             <div className="inventory-results-head">
               <p>
-                <strong>New Hot</strong>
+                <strong>{visibleProducts.length}</strong> item{visibleProducts.length === 1 ? '' : 's'}
               </p>
               {selectedCategoryOption && <span>{selectedCategoryOption.label}</span>}
             </div>
@@ -226,10 +271,49 @@ function InventorySearch() {
               </div>
             )}
 
-            <div className="inventory-empty-state">
-              <p>Photos for New Hot are coming soon.</p>
-              <span>New inventory images will appear here.</span>
-            </div>
+            {visibleProducts.length > 0 ? (
+              <div className="inventory-grid">
+                {visibleProducts.map((product) => (
+                  <article className="inventory-product-card" key={product.id}>
+                    <div className="inventory-product-media">
+                      <img src={product.image} alt={product.name} loading="lazy" />
+                    </div>
+                    <div className="inventory-product-content">
+                      <div>
+                        <span className="inventory-product-category">
+                          {product.categoryName}
+                        </span>
+                        <h3>{product.name}</h3>
+                        <p>{product.description}</p>
+                      </div>
+                      <div className="inventory-product-meta">
+                        <span>{product.categoryName}</span>
+                        <strong>{priceFormatter.format(product.price)}</strong>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="inventory-empty-state">
+                {status === 'loading' ? (
+                  <>
+                    <p>Loading inventory...</p>
+                    <span>Current products will appear here.</span>
+                  </>
+                ) : status === 'error' ? (
+                  <>
+                    <p>Inventory is unavailable.</p>
+                    <span>{error}</span>
+                  </>
+                ) : (
+                  <>
+                    <p>No products match this view.</p>
+                    <span>Try changing the category, search, or price range.</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

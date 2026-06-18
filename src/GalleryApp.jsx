@@ -1,4 +1,7 @@
+import { useMemo } from 'react'
 import SiteShell from './SiteChrome'
+import { shopCategories } from './shopCatalog'
+import { usePublishedProducts } from './usePublishedProducts'
 import './App.css'
 import './Gallery.css'
 
@@ -7,47 +10,17 @@ const priceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
 })
 
-const categories = [
-  {
-    id: 'new-hot',
-    label: 'New Hot',
-    note: 'Fresh drops and new arrivals!',
-    featured: true,
-    images: [],
-  },
-  {
-    id: 'pokemon',
-    label: 'Pokemon',
-    note: 'Pokemon TCG singles, sealed items, and rare collector finds!',
-    images: [],
-  },
-  {
-    id: 'funko-pops',
-    label: 'Funko Pops',
-    note: 'Collectible figures and character exclusives!',
-    images: [],
-  },
-  {
-    id: 'sneakers',
-    label: 'Sneakers',
-    note: 'Pairs worth a closer look!',
-    images: [],
-  },
-  {
-    id: 'clothes',
-    label: 'Clothes',
-    note: 'Apparel, streetwear, and shop finds!',
-    images: [],
-  },
-  {
-    id: 'retro',
-    label: 'Retro',
-    note: 'Throwbacks, classics, and nostalgia!',
-    images: [],
-  },
-]
-
 function GalleryApp() {
+  const { error, products, status } = usePublishedProducts()
+  const categories = useMemo(
+    () =>
+      shopCategories.map((category) => ({
+        ...category,
+        products: products.filter((product) => product.categoryId === category.id),
+      })),
+    [products],
+  )
+
   return (
     <SiteShell currentPage="shop">
       <main className="product-gallery-page" id="main-content">
@@ -77,6 +50,18 @@ function GalleryApp() {
         </section>
 
         <div className="gallery-sections">
+          {status === 'loading' && (
+            <div className="gallery-container">
+              <p className="gallery-status-message">Loading current shop inventory...</p>
+            </div>
+          )}
+
+          {status === 'error' && (
+            <div className="gallery-container">
+              <p className="gallery-status-message is-error">{error}</p>
+            </div>
+          )}
+
           {categories.map((category) => (
             <section
               className={`product-gallery-section${category.featured ? ' is-featured' : ''}`}
@@ -99,7 +84,7 @@ function GalleryApp() {
                   <a href="#gallery-title">Back to categories</a>
                 </div>
 
-                {category.products?.length > 0 ? (
+                {category.products.length > 0 ? (
                   <div className="shop-product-grid">
                     {category.products.map((product) => (
                       <article className="shop-product-card" key={product.id}>
@@ -115,19 +100,11 @@ function GalleryApp() {
                             <p>{product.description}</p>
                           </div>
                           <div className="shop-product-meta">
-                            <span>{product.condition}</span>
+                            <span>{product.categoryName}</span>
                             <strong>{priceFormatter.format(product.price)}</strong>
                           </div>
                         </div>
                       </article>
-                    ))}
-                  </div>
-                ) : category.images.length > 0 ? (
-                  <div className="product-image-grid">
-                    {category.images.map((image) => (
-                      <a href={image.src} key={image.src} target="_blank" rel="noreferrer">
-                        <img src={image.src} alt={image.alt} />
-                      </a>
                     ))}
                   </div>
                 ) : (

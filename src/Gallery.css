@@ -116,6 +116,19 @@
   text-transform: uppercase;
 }
 
+.gallery-status-message {
+  margin: 18px 0 0;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-accent-soft);
+  padding: 11px 13px;
+}
+
+.gallery-status-message.is-error {
+  border-color: #b42318;
+  background: #fef3f2;
+  color: #912018;
+}
+
 .product-gallery-section {
   scroll-margin-top: 82px;
   border-bottom: 1px solid var(--color-border);
