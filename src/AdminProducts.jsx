@@ -14,6 +14,7 @@ import { buildItemId, getItemType, itemTypes, nextItemSequence } from './itemTyp
 import { db } from './firebase'
 import { getShopCategory, shopCategories } from './shopCatalog'
 import {
+  createProductImagePreview,
   deleteStoredImages,
   imageValidationError,
   uploadProductImage,
@@ -120,18 +121,40 @@ function mergePrimaryImage(currentImages, imageFields) {
 function ProductEditor({ isSaving, onCancel, onSave, record }) {
   const [form, setForm] = useState(() => recordToProductForm(record))
   const [error, setError] = useState('')
-  const previewUrl = useMemo(
-    () => (form.imageFile ? URL.createObjectURL(form.imageFile) : ''),
-    [form.imageFile],
-  )
+  const [preview, setPreview] = useState({ file: null, url: '' })
 
   useEffect(() => {
-    if (!previewUrl) {
+    if (!form.imageFile) {
       return undefined
     }
 
-    return () => URL.revokeObjectURL(previewUrl)
-  }, [previewUrl])
+    let isCurrent = true
+    let objectUrl = ''
+
+    createProductImagePreview(form.imageFile)
+      .then(({ previewUrl: nextPreviewUrl }) => {
+        objectUrl = nextPreviewUrl
+
+        if (isCurrent) {
+          setPreview({ file: form.imageFile, url: nextPreviewUrl })
+        } else {
+          URL.revokeObjectURL(nextPreviewUrl)
+        }
+      })
+      .catch((previewError) => {
+        if (isCurrent) {
+          setError(previewError.message)
+        }
+      })
+
+    return () => {
+      isCurrent = false
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [form.imageFile])
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
 
@@ -148,7 +171,7 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
     onSave(form)
   }
 
-  const displayImage = previewUrl || form.imageUrl
+  const displayImage = preview.file === form.imageFile ? preview.url : form.imageFile ? '' : form.imageUrl
 
   return (
     <form className="admin-editor admin-product-editor" onSubmit={handleSubmit}>

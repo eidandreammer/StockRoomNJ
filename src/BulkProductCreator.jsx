@@ -8,7 +8,7 @@ import {
   itemTypes,
   nextItemSequence,
 } from './itemTypes'
-import { imageValidationError } from './productImages'
+import { createProductImagePreview, imageValidationError } from './productImages'
 import { shopCategories } from './shopCatalog'
 
 const groupColors = [
@@ -21,6 +21,27 @@ const groupColors = [
   '#c11574',
   '#475467',
 ]
+const PREVIEW_CONCURRENCY = 2
+const PREVIEW_UI_TIMEOUT_MS = 30000
+const DEFAULT_PREVIEW_DIMENSION = 128
+const DEFAULT_THUMBNAIL_SCALE = 100
+const MIN_THUMBNAIL_SCALE = 25
+const MAX_THUMBNAIL_SCALE = 200
+const THUMBNAIL_SCALE_STEP = 25
+
+async function runWithConcurrency(items, limit, worker) {
+  let nextIndex = 0
+  const workerCount = Math.min(limit, items.length)
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex]
+      nextIndex += 1
+      await worker(item)
+    }
+  })
+
+  await Promise.all(workers)
+}
 
 function localId(prefix) {
   if (globalThis.crypto?.randomUUID) {
@@ -91,6 +112,26 @@ function recommendationText(imageCount) {
     .join(' or ')}.`
 }
 
+function loadImageDimensions(src) {
+  return new Promise((resolve) => {
+    const image = new Image()
+
+    image.onload = () => {
+      resolve({
+        height: image.naturalHeight || DEFAULT_PREVIEW_DIMENSION,
+        width: image.naturalWidth || DEFAULT_PREVIEW_DIMENSION,
+      })
+    }
+    image.onerror = () => {
+      resolve({
+        height: DEFAULT_PREVIEW_DIMENSION,
+        width: DEFAULT_PREVIEW_DIMENSION,
+      })
+    }
+    image.src = src
+  })
+}
+
 function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups, savingMessage }) {
   const [activeDraftGroupId, setActiveDraftGroupId] = useState('')
   const [activeGroupId, setActiveGroupId] = useState('')
@@ -101,11 +142,27 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
   const [photos, setPhotos] = useState([])
   const [queueOpen, setQueueOpen] = useState(false)
   const [step, setStep] = useState('grouping')
+  const [thumbnailScale, setThumbnailScale] = useState(DEFAULT_THUMBNAIL_SCALE)
+  const [viewingPhotoId, setViewingPhotoId] = useState('')
+  const galleryClickTimerRef = useRef(null)
+  const isMountedRef = useRef(true)
+  const lastGroupedPhotoIdRef = useRef('')
+  const previewTimersRef = useRef(new Map())
   const previewUrlsRef = useRef(new Set())
 
-  useEffect(() => () => {
-    previewUrlsRef.current.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
-    previewUrlsRef.current.clear()
+  useEffect(() => {
+    isMountedRef.current = true
+    const previewTimers = previewTimersRef.current
+    const previewUrls = previewUrlsRef.current
+
+    return () => {
+      isMountedRef.current = false
+      clearTimeout(galleryClickTimerRef.current)
+      previewTimers.forEach((timerId) => clearTimeout(timerId))
+      previewTimers.clear()
+      previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
+      previewUrls.clear()
+    }
   }, [])
 
   const photosByGroup = useMemo(() => {
@@ -127,6 +184,14 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
 
   const ungroupedCount = useMemo(
     () => photos.filter((photo) => !photo.groupId).length,
+    [photos],
+  )
+  const preparingPhotoCount = useMemo(
+    () => photos.filter((photo) => photo.isPreparing).length,
+    [photos],
+  )
+  const readyPreviewCount = useMemo(
+    () => photos.filter((photo) => photo.previewUrl).length,
     [photos],
   )
 
@@ -159,11 +224,75 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
     ? groupsWithPhotos.findIndex((group) => group.id === activeDraftGroup.id)
     : -1
   const readyGroupCount = groupsWithPhotos.filter((group) => !draftValidationError(drafts[group.id])).length
+  const viewingPhoto = photos.find((photo) => photo.id === viewingPhotoId) ?? null
+  const thumbnailScaleLabel = `${thumbnailScale}%`
 
   const createGroupRecord = (index) => ({
     color: groupColors[index % groupColors.length],
     id: localId('group'),
   })
+
+  const updateThumbnailScale = (nextScale) => {
+    const clampedScale = Math.min(
+      MAX_THUMBNAIL_SCALE,
+      Math.max(MIN_THUMBNAIL_SCALE, Number(nextScale) || DEFAULT_THUMBNAIL_SCALE),
+    )
+
+    setThumbnailScale(clampedScale)
+  }
+
+  useEffect(() => {
+    if (!viewingPhoto) {
+      return undefined
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setViewingPhotoId('')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewingPhoto])
+
+  const clearPreviewTimer = (photoId) => {
+    const timerId = previewTimersRef.current.get(photoId)
+
+    if (timerId) {
+      clearTimeout(timerId)
+      previewTimersRef.current.delete(photoId)
+    }
+  }
+
+  const startPreviewTimer = (photo) => {
+    clearPreviewTimer(photo.id)
+
+    const timerId = setTimeout(() => {
+      previewTimersRef.current.delete(photo.id)
+
+      if (!isMountedRef.current) {
+        return
+      }
+
+      const timeoutMessage = `Preview took too long for ${photo.file.name}. Try exporting it as a JPEG first.`
+      setPhotos((current) =>
+        current.map((currentPhoto) =>
+          currentPhoto.id === photo.id && currentPhoto.isPreparing
+            ? {
+                ...currentPhoto,
+                isPreparing: false,
+                previewError: timeoutMessage,
+              }
+            : currentPhoto,
+        ),
+      )
+      setError(timeoutMessage)
+    }, PREVIEW_UI_TIMEOUT_MS)
+
+    previewTimersRef.current.set(photo.id, timerId)
+  }
 
   const createGroup = () => {
     const group = createGroupRecord(groups.length)
@@ -187,13 +316,14 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
         return
       }
 
-      const previewUrl = URL.createObjectURL(file)
-      previewUrlsRef.current.add(previewUrl)
       acceptedPhotos.push({
         file,
         groupId: '',
         id: localId('photo'),
-        previewUrl,
+        isPreparing: true,
+        previewDimensions: null,
+        previewError: '',
+        previewUrl: '',
       })
     })
 
@@ -205,6 +335,65 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
         setGroups([group])
         setActiveGroupId(group.id)
       }
+
+      runWithConcurrency(acceptedPhotos, PREVIEW_CONCURRENCY, async (photo) => {
+        startPreviewTimer(photo)
+
+        try {
+          const { previewUrl } = await createProductImagePreview(photo.file)
+          const previewDimensions = await loadImageDimensions(previewUrl)
+          clearPreviewTimer(photo.id)
+
+          if (!isMountedRef.current) {
+            URL.revokeObjectURL(previewUrl)
+            return
+          }
+
+          previewUrlsRef.current.add(previewUrl)
+          setPhotos((current) => {
+            if (!current.some((currentPhoto) => currentPhoto.id === photo.id)) {
+              URL.revokeObjectURL(previewUrl)
+              previewUrlsRef.current.delete(previewUrl)
+              return current
+            }
+
+            return current.map((currentPhoto) =>
+              currentPhoto.id === photo.id
+                ? {
+                    ...currentPhoto,
+                    isPreparing: false,
+                    previewDimensions,
+                    previewError: '',
+                    previewUrl,
+                  }
+                : currentPhoto,
+            )
+          })
+        } catch (previewError) {
+          clearPreviewTimer(photo.id)
+
+          if (!isMountedRef.current) {
+            return
+          }
+
+          setPhotos((current) =>
+            current.map((currentPhoto) =>
+              currentPhoto.id === photo.id
+                ? {
+                    ...currentPhoto,
+                    isPreparing: false,
+                    previewError: previewError.message,
+                  }
+                : currentPhoto,
+            ),
+          )
+          setError(previewError.message)
+        }
+      }).catch((queueError) => {
+        if (isMountedRef.current) {
+          setError(queueError.message)
+        }
+      })
     }
 
     setError(rejectedCount > 0 ? `${rejectedCount} file${rejectedCount === 1 ? '' : 's'} skipped. ${firstError}` : '')
@@ -232,6 +421,74 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
       ),
     )
     setError('')
+  }
+
+  const assignPhotoRangeToActiveGroup = (photo) => {
+    let nextActiveGroupId = activeGroupId
+
+    if (!nextActiveGroupId) {
+      const nextActiveGroup = createGroupRecord(groups.length)
+      nextActiveGroupId = nextActiveGroup.id
+      setGroups((current) => [...current, nextActiveGroup])
+      setActiveGroupId(nextActiveGroupId)
+    }
+
+    const anchorPhotoId = lastGroupedPhotoIdRef.current
+    const anchorIndex = photos.findIndex((currentPhoto) => currentPhoto.id === anchorPhotoId)
+    const photoIndex = photos.findIndex((currentPhoto) => currentPhoto.id === photo.id)
+
+    if (anchorIndex === -1 || photoIndex === -1) {
+      setPhotos((current) =>
+        current.map((currentPhoto) =>
+          currentPhoto.id === photo.id
+            ? {
+                ...currentPhoto,
+                groupId: currentPhoto.groupId === nextActiveGroupId ? '' : nextActiveGroupId,
+              }
+            : currentPhoto,
+        ),
+      )
+      setError('')
+      return
+    }
+
+    const [startIndex, endIndex] = [anchorIndex, photoIndex].sort((left, right) => left - right)
+    const selectedPhotoIds = new Set(
+      photos.slice(startIndex, endIndex + 1).map((selectedPhoto) => selectedPhoto.id),
+    )
+
+    setPhotos((current) =>
+      current.map((currentPhoto) =>
+        selectedPhotoIds.has(currentPhoto.id)
+          ? {
+              ...currentPhoto,
+              groupId: nextActiveGroupId,
+            }
+          : currentPhoto,
+      ),
+    )
+    setError('')
+  }
+
+  const handlePhotoClick = (photo, event) => {
+    const isRangeSelection = event.shiftKey
+    clearTimeout(galleryClickTimerRef.current)
+
+    galleryClickTimerRef.current = setTimeout(() => {
+      if (isRangeSelection) {
+        assignPhotoRangeToActiveGroup(photo)
+      } else {
+        togglePhotoInActiveGroup(photo)
+      }
+      lastGroupedPhotoIdRef.current = photo.id
+      galleryClickTimerRef.current = null
+    }, 180)
+  }
+
+  const openPhotoViewer = (photo) => {
+    clearTimeout(galleryClickTimerRef.current)
+    galleryClickTimerRef.current = null
+    setViewingPhotoId(photo.id)
   }
 
   const assignUngroupedToActiveGroup = () => {
@@ -282,6 +539,9 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
 
   const removePhoto = (photoId) => {
     const photo = photos.find((currentPhoto) => currentPhoto.id === photoId)
+    clearTimeout(galleryClickTimerRef.current)
+    galleryClickTimerRef.current = null
+    clearPreviewTimer(photoId)
 
     if (photo) {
       URL.revokeObjectURL(photo.previewUrl)
@@ -289,6 +549,7 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
     }
 
     setPhotos((current) => current.filter((currentPhoto) => currentPhoto.id !== photoId))
+    setViewingPhotoId((currentPhotoId) => (currentPhotoId === photoId ? '' : currentPhotoId))
     setError('')
   }
 
@@ -303,12 +564,12 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
       return
     }
 
-    if (ungroupedCount > 0) {
-      setError('Assign every uploaded photo to a group before continuing.')
-      return
-    }
-
     setGroups(groupsWithPhotos)
+    setActiveGroupId((currentGroupId) =>
+      groupsWithPhotos.some((group) => group.id === currentGroupId)
+        ? currentGroupId
+        : groupsWithPhotos[0].id,
+    )
     setDrafts((current) => {
       const nextDrafts = {}
 
@@ -444,23 +705,33 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
           <form className="admin-editor admin-draft-workspace" onSubmit={(event) => event.preventDefault()}>
             <div className="admin-draft-media" style={{ '--group-color': activeDraftGroup.color }}>
               <div className="admin-draft-primary">
-                <img
-                  alt={`${groupLabel(groupsWithPhotos, activeDraftGroup.id)} primary preview`}
-                  decoding="async"
-                  loading="lazy"
-                  src={activeDraftPhotos[0]?.previewUrl}
-                />
+                {activeDraftPhotos[0]?.previewUrl ? (
+                  <img
+                    alt={`${groupLabel(groupsWithPhotos, activeDraftGroup.id)} primary preview`}
+                    decoding="async"
+                    src={activeDraftPhotos[0].previewUrl}
+                  />
+                ) : (
+                  <span className="admin-photo-preview-placeholder">
+                    {activeDraftPhotos[0]?.previewError ? 'Preview unavailable' : 'Preparing preview'}
+                  </span>
+                )}
               </div>
               <div className="admin-draft-strip" aria-label="Grouped photos">
-                {activeDraftPhotos.map((photo) => (
-                  <img
-                    alt={photo.file.name}
-                    decoding="async"
-                    key={photo.id}
-                    loading="lazy"
-                    src={photo.previewUrl}
-                  />
-                ))}
+                {activeDraftPhotos.map((photo) =>
+                  photo.previewUrl ? (
+                    <img
+                      alt={photo.file.name}
+                      decoding="async"
+                      key={photo.id}
+                      src={photo.previewUrl}
+                    />
+                  ) : (
+                    <span className="admin-photo-preview-placeholder" key={photo.id}>
+                      {photo.previewError ? 'No preview' : 'Preparing'}
+                    </span>
+                  ),
+                )}
               </div>
             </div>
 
@@ -603,9 +874,19 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
       <div className="admin-upload-zone">
         <label>
           <span>Upload photos</span>
-          <input accept="image/*" multiple type="file" onChange={handleFiles} />
+          <input
+            accept="image/*,.heic,.heif"
+            disabled={isSaving}
+            multiple
+            type="file"
+            onChange={handleFiles}
+          />
         </label>
-        <strong>{photoFileLabel(photos.length)}</strong>
+        <strong>
+          {preparingPhotoCount > 0
+            ? `${readyPreviewCount}/${photos.length} previews ready`
+            : photoFileLabel(photos.length)}
+        </strong>
       </div>
 
       {photos.length > 0 && (
@@ -660,27 +941,80 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
           <div className="admin-gallery-status">
             <span>{groupsWithPhotos.length} group{groupsWithPhotos.length === 1 ? '' : 's'}</span>
             <span>{ungroupedCount} ungrouped</span>
+            {preparingPhotoCount > 0 && <span>{preparingPhotoCount} preparing</span>}
             <span>{activeGroup ? `Active: ${groupLabel(groups, activeGroup.id)}` : 'No active group'}</span>
+            <div className="admin-gallery-zoom" aria-label="Thumbnail size">
+              <button
+                aria-label="Zoom thumbnails out"
+                disabled={thumbnailScale <= MIN_THUMBNAIL_SCALE}
+                title="Zoom out"
+                type="button"
+                onClick={() => updateThumbnailScale(thumbnailScale - THUMBNAIL_SCALE_STEP)}
+              >
+                -
+              </button>
+              <input
+                aria-label="Thumbnail size"
+                max={MAX_THUMBNAIL_SCALE}
+                min={MIN_THUMBNAIL_SCALE}
+                step={THUMBNAIL_SCALE_STEP}
+                type="range"
+                value={thumbnailScale}
+                onChange={(event) => updateThumbnailScale(event.target.value)}
+              />
+              <button
+                aria-label="Zoom thumbnails in"
+                disabled={thumbnailScale >= MAX_THUMBNAIL_SCALE}
+                title="Zoom in"
+                type="button"
+                onClick={() => updateThumbnailScale(thumbnailScale + THUMBNAIL_SCALE_STEP)}
+              >
+                +
+              </button>
+              <output aria-live="polite">{thumbnailScaleLabel}</output>
+            </div>
           </div>
 
-          <div className="admin-upload-gallery" aria-label="Uploaded photos">
+          <div
+            className="admin-upload-gallery"
+            aria-label="Uploaded photos"
+          >
             {photos.map((photo) => {
               const photoGroup = groups.find((group) => group.id === photo.groupId)
               const isActiveGroupPhoto = Boolean(photoGroup && photoGroup.id === activeGroupId)
+              const previewDimensions = photo.previewDimensions ?? {
+                height: DEFAULT_PREVIEW_DIMENSION,
+                width: DEFAULT_PREVIEW_DIMENSION,
+              }
+              const scale = thumbnailScale / 100
+              const thumbnailWidth = Math.max(1, Math.round(previewDimensions.width * scale))
+              const thumbnailHeight = Math.max(1, Math.round(previewDimensions.height * scale))
 
               return (
                 <div
                   className={`admin-upload-tile${photoGroup ? ' is-grouped' : ''}${isActiveGroupPhoto ? ' is-active' : ''}`}
                   key={photo.id}
-                  style={{ '--group-color': photoGroup?.color ?? '#d0d5dd' }}
+                  style={{
+                    '--admin-gallery-thumb-height': `${thumbnailHeight}px`,
+                    '--admin-gallery-thumb-width': `${thumbnailWidth}px`,
+                    '--group-color': photoGroup?.color ?? '#d0d5dd',
+                  }}
                 >
                   <button
                     aria-pressed={isActiveGroupPhoto}
                     className="admin-upload-select"
+                    disabled={photo.isPreparing || Boolean(photo.previewError)}
                     type="button"
-                    onClick={() => togglePhotoInActiveGroup(photo)}
+                    onClick={(event) => handlePhotoClick(photo, event)}
+                    onDoubleClick={() => openPhotoViewer(photo)}
                   >
-                    <img alt={photo.file.name} decoding="async" loading="lazy" src={photo.previewUrl} />
+                    {photo.previewUrl ? (
+                      <img alt={photo.file.name} decoding="async" src={photo.previewUrl} />
+                    ) : (
+                      <span className="admin-photo-preview-placeholder">
+                        {photo.previewError ? 'Preview unavailable' : 'Preparing preview'}
+                      </span>
+                    )}
                     <span className="admin-photo-group-marker">
                       {photoGroup ? groupLabel(groups, photoGroup.id).replace('Group ', '') : '-'}
                     </span>
@@ -698,13 +1032,40 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
             })}
           </div>
 
+          {viewingPhoto?.previewUrl && (
+            <div className="admin-image-viewer" role="dialog" aria-modal="true" aria-label="Full size image preview">
+              <button
+                className="admin-image-viewer-backdrop"
+                aria-label="Close image preview"
+                type="button"
+                onClick={() => setViewingPhotoId('')}
+              />
+              <figure className="admin-image-viewer-content">
+                <button
+                  className="admin-image-viewer-close"
+                  aria-label="Close image preview"
+                  type="button"
+                  onClick={() => setViewingPhotoId('')}
+                >
+                  Close
+                </button>
+                <img alt={viewingPhoto.file.name} decoding="async" src={viewingPhoto.previewUrl} />
+                <figcaption>{viewingPhoto.file.name}</figcaption>
+              </figure>
+            </div>
+          )}
+
           <div className="admin-row admin-workflow-actions">
             <span className="admin-muted">
               {ungroupedCount === 0
-                ? 'All photos are grouped.'
-                : `${ungroupedCount} photo${ungroupedCount === 1 ? '' : 's'} still need a group.`}
+                ? 'All grouped photos will become drafts.'
+                : `${ungroupedCount} ungrouped photo${ungroupedCount === 1 ? '' : 's'} will be skipped.`}
             </span>
-            <button className="admin-button" type="button" onClick={proceedToDetails}>
+            <button
+              className="admin-button"
+              type="button"
+              onClick={proceedToDetails}
+            >
               Next
             </button>
           </div>
