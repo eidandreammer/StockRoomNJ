@@ -7,6 +7,14 @@ export default defineConfig({
   base: './',
   envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   plugins: [react()],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5001/stockroomnj-10e7d/us-central1/api',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     rollupOptions: {
       input: {

@@ -22,11 +22,15 @@ function GoogleMap() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+
     // 1. Listen for global authentication failures (e.g. invalid key or API not enabled)
     window.gm_authFailure = () => {
       console.warn("Google Maps API authentication failed. Falling back to styled iframe.")
-      setHasError(true)
-      setIsLoading(false)
+      if (isMounted) {
+        setHasError(true)
+        setIsLoading(false)
+      }
     }
 
     const apiKey = (
@@ -45,10 +49,14 @@ function GoogleMap() {
     const scriptId = 'google-maps-js-sdk'
     let script = document.getElementById(scriptId)
 
-    const initGoogleMap = () => {
+    const initGoogleMap = async () => {
       if (!mapRef.current) return
       try {
         const position = storeCoordinates
+        const { Map, OverlayView } = await window.google.maps.importLibrary('maps')
+        const { LatLng } = await window.google.maps.importLibrary('core')
+
+        if (!isMounted || !mapRef.current) return
 
         // Brand Royal Blue and Coin Gray map styling config
         const MAP_STYLES = [
@@ -102,7 +110,7 @@ function GoogleMap() {
           }
         ]
 
-        const map = new window.google.maps.Map(mapRef.current, {
+        const map = new Map(mapRef.current, {
           center: position,
           zoom: 17,
           styles: MAP_STYLES,
@@ -112,7 +120,7 @@ function GoogleMap() {
         })
 
         // Custom Overlay View for HTML/CSS brand marker
-        class HTMLMarker extends window.google.maps.OverlayView {
+        class HTMLMarker extends OverlayView {
           constructor(pos, html, href) {
             super()
             this.pos = pos
@@ -172,31 +180,37 @@ function GoogleMap() {
         `
 
         const customMarker = new HTMLMarker(
-          new window.google.maps.LatLng(position.lat, position.lng),
+          new LatLng(position.lat, position.lng),
           markerHtml,
           googleMapsPlaceUrl
         )
         customMarker.setMap(map)
 
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       } catch (err) {
         console.error("Error rendering Google Map JS API:", err)
-        setHasError(true)
-        setIsLoading(false)
+        if (isMounted) {
+          setHasError(true)
+          setIsLoading(false)
+        }
       }
     }
 
     if (!script) {
       script = document.createElement('script')
       script.id = scriptId
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async`
       script.async = true
       script.defer = true
-      script.onload = initGoogleMap
+      script.addEventListener('load', initGoogleMap)
       script.onerror = () => {
         console.error("Failed to load Google Maps JS SDK script.")
-        setHasError(true)
-        setIsLoading(false)
+        if (isMounted) {
+          setHasError(true)
+          setIsLoading(false)
+        }
       }
       document.body.appendChild(script)
     } else {
@@ -205,6 +219,14 @@ function GoogleMap() {
       } else {
         script.addEventListener('load', initGoogleMap)
       }
+    }
+
+    return () => {
+      isMounted = false
+      if (window.gm_authFailure) {
+        delete window.gm_authFailure
+      }
+      script?.removeEventListener('load', initGoogleMap)
     }
   }, [])
 

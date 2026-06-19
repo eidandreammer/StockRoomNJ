@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run tests/eventModel.test.js tests/bidMath.test.js",
     "test:rules": "firebase emulators:exec --project stockroomnj-rules-test --only firestore \"vitest run tests/firestore.rules.test.js\"",
-    "emulators": "firebase emulators:start --only auth,firestore,storage",
+    "emulators": "firebase emulators:start --only auth,firestore,storage,functions",
     "deploy:rules": "firebase deploy --project stockroomnj-10e7d --only firestore:rules,storage",
     "functions:lint": "npm --prefix functions run lint",
     "migrate:legal": "npm --prefix functions run migrate:legal"

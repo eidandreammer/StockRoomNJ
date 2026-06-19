@@ -127,6 +127,10 @@ function CheckoutDialog({ items, onClose, subtotal }) {
         method: 'POST',
       })
 
+      if (!checkout.url) {
+        throw new Error(checkout.warning || 'Checkout is not configured.')
+      }
+
       window.location.assign(checkout.url)
     } catch (checkoutError) {
       setError(checkoutError.message)

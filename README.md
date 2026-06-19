@@ -22,6 +22,8 @@ shop inventory and an event calendar, and `/admin` provides the staff dashboard.
 The Firebase emulator requires JDK 21 or newer. To develop against local Firebase services,
 run `npm run emulators`, set
 `VITE_USE_FIREBASE_EMULATORS=true` in `.env`, and start Vite in another terminal.
+Vite proxies `/api` requests to the local Functions emulator so checkout and legal
+agreement endpoints match the deployed Firebase Hosting rewrites.
 
 ## Firebase Setup
 
