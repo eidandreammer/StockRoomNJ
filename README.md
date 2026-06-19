@@ -12,8 +12,8 @@ shop inventory and an event calendar, and `/admin` provides the staff dashboard.
 
 1. Run `npm install`.
 2. Copy `.env.example` to `.env` and fill in the Firebase web app values.
-3. Create a Google reCAPTCHA v2 checkbox key for the admin domain and set
-   `VITE_RECAPTCHA_SITE_KEY` in `.env`.
+3. Create a Google reCAPTCHA v2 checkbox key for the deployed admin domain and set
+   `VITE_RECAPTCHA_SITE_KEY` in `.env`. Localhost skips this check automatically.
 4. Run `npm run dev`.
 5. Open `/` for the storefront, `/shop` for the shop, or `/admin` for the dashboard.
 
@@ -25,8 +25,7 @@ run `npm run emulators`, set
 
 1. Create a Firebase project and register a web app.
 2. Enable Firestore, Firebase Storage, and Email/Password authentication.
-3. Create a Google reCAPTCHA v2 checkbox site key for each dashboard domain, including
-   localhost if needed for local testing.
+3. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
 4. Create each staff account in Firebase Console under Authentication.
 5. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
    may contain `{ "enabled": true }`; authorization is based on the document existing.

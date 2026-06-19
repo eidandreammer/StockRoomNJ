@@ -40,7 +40,10 @@ const TOTP_DISPLAY_NAME = 'Authenticator app'
 const RECAPTCHA_SCRIPT_ID = 'stockroom-recaptcha-script'
 const RECAPTCHA_SCRIPT_SRC = 'https://www.google.com/recaptcha/api.js?render=explicit'
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY?.trim()
-const RECAPTCHA_DISABLED = import.meta.env.VITE_DISABLE_RECAPTCHA === 'true'
+const LOCALHOST_NAMES = new Set(['localhost', '::1', '[::1]'])
+const isLocalhost = LOCALHOST_NAMES.has(globalThis.location?.hostname) ||
+  /^127(?:\.\d{1,3}){3}$/.test(globalThis.location?.hostname ?? '')
+const RECAPTCHA_DISABLED = import.meta.env.VITE_DISABLE_RECAPTCHA === 'true' || isLocalhost
 
 let recaptchaScriptPromise = null
 

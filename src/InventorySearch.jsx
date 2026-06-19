@@ -474,7 +474,7 @@ function InventorySearch() {
                 <h2 id="shop-highlights-title" style={{ fontSize: '2rem' }}>Top finds by category.</h2>
               </div>
               <p>
-                The three highest-priced products currently available in each shop category.
+                The hottest products currently available in each shop category.
               </p>
             </div>
 
