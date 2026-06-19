@@ -18,16 +18,21 @@
   will-change: transform, width, height, opacity;
 }
 
-.masonry-item-wrapper > .masonry-item-img {
+.masonry-item-media {
   position: relative;
   display: block;
   width: 100%;
   height: 100%;
   overflow: hidden;
   border-radius: 4px;
-  background-position: center center;
-  background-size: cover;
   box-shadow: 0 10px 50px -10px rgba(0, 0, 0, 0.2);
+}
+
+.masonry-item-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .color-overlay {

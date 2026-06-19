@@ -17,7 +17,7 @@ const masonryQueries = [
   '(min-width:400px)',
 ]
 
-const masonryColumns = [5, 4, 3, 2]
+const masonryColumns = [2, 2, 2, 1]
 
 const useMedia = (queries, values, defaultValue) => {
   const get = useCallback(() => {
@@ -134,7 +134,11 @@ const Masonry = ({
   useEffect(() => {
     let isCurrent = true
 
-    preloadImages(items.map((item) => item.img)).then(() => {
+    const imageUrls = items
+      .filter((item) => item.type !== 'video')
+      .map((item) => item.img)
+
+    preloadImages(imageUrls).then(() => {
       if (isCurrent) {
         setImagesReady(true)
       }
@@ -154,9 +158,20 @@ const Masonry = ({
     const columnWidth = width / columns
 
     return items.map((child) => {
+      if (child.fullWidth) {
+        const y = Math.max(...columnHeights)
+        const x = 0
+        const w = width
+        const aspectRatio = child.width && child.height ? child.width / child.height : 1.5
+        const height = width / aspectRatio
+        columnHeights.fill(y + height)
+        return { ...child, x, y, w, h: height }
+      }
+
       const column = columnHeights.indexOf(Math.min(...columnHeights))
       const x = columnWidth * column
-      const height = child.height / 2
+      const aspectRatio = child.width && child.height ? child.width / child.height : 1.5
+      const height = columnWidth / aspectRatio
       const y = columnHeights[column]
 
       columnHeights[column] += height
@@ -315,12 +330,25 @@ const Masonry = ({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <span
-            className="masonry-item-img"
-            style={{ backgroundImage: `url("${item.img}")` }}
-          >
+          <div className="masonry-item-media">
+            {item.type === 'video' ? (
+              <video
+                className="masonry-item-img masonry-item-video"
+                src={item.img}
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+            ) : (
+              <img
+                className="masonry-item-img"
+                src={item.img}
+                alt={item.alt ?? 'Gallery image'}
+              />
+            )}
             {colorShiftOnHover && <span className="color-overlay" />}
-          </span>
+          </div>
         </a>
       ))}
     </div>

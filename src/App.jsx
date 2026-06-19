@@ -1,7 +1,9 @@
 import InventorySearch from './InventorySearch'
 import Masonry from './Masonry'
 import SiteShell, { Icon } from './SiteChrome'
+import GoogleMap from './GoogleMap'
 import {
+  footerLogo,
   googleDirectionsUrl,
   googleMapEmbedUrl,
   hours,
@@ -15,15 +17,32 @@ import EventsCalendar from './events/EventsCalendar'
 import heroBackground from './assets/hero-background.png'
 import './App.css'
 
-const galleryImage = `${import.meta.env.BASE_URL}Images/1.png`
-
 const galleryItems = [
+  {
+    id: 'gallery-test-vid',
+    alt: 'Stock Room Test Vid',
+    width: 1920,
+    height: 1080,
+    type: 'video',
+    fullWidth: true,
+    img: `${import.meta.env.BASE_URL}Images/Stock Room Test Vid.mp4`,
+    url: `${import.meta.env.BASE_URL}Images/Stock Room Test Vid.mp4`,
+  },
   {
     id: 'gallery-1',
     alt: 'StockRoom NJ gallery image 1',
-    height: 760,
-    img: galleryImage,
-    url: galleryImage,
+    width: 1366,
+    height: 768,
+    img: `${import.meta.env.BASE_URL}Images/1.png`,
+    url: `${import.meta.env.BASE_URL}Images/1.png`,
+  },
+  {
+    id: 'gallery-naruto-rug',
+    alt: 'Naruto Rug',
+    width: 2528,
+    height: 1684,
+    img: `${import.meta.env.BASE_URL}Images/Naruto Rug.png`,
+    url: `${import.meta.env.BASE_URL}Images/Naruto Rug.png`,
   },
 ]
 
@@ -131,14 +150,7 @@ function App() {
             </div>
 
             <div className="map-panel" aria-label={`Google Map for StockRoom NJ at ${storeAddress}`}>
-              <iframe
-                allowFullScreen
-                className="map-frame"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                src={googleMapEmbedUrl}
-                title="Google Map for StockRoom NJ"
-              />
+              <GoogleMap />
               <a
                 className="map-action"
                 href={googleDirectionsUrl}

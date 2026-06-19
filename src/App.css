@@ -2313,13 +2313,97 @@ address {
   width: 100%;
   height: 100%;
   border: 0;
+  /* Grayscale + blue-shift sepia to style the map in coin gray and royal blue */
+  filter: grayscale(1) sepia(0.3) saturate(1.8) hue-rotate(200deg) brightness(0.95) contrast(1.05);
+  transition: filter 0.3s ease;
+}
+
+.map-overlay-link {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+}
+
+.map-overlay {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  transition: background 0.3s ease;
+}
+
+.map-overlay-link:hover .map-overlay {
+  background: rgba(0, 87, 255, 0.03);
+}
+
+.custom-map-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+}
+
+.marker-badge {
+  width: 48px;
+  height: 48px;
+  background: var(--color-bg);
+  border: 3px solid var(--color-accent);
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0, 87, 255, 0.35), 0 0 0 4px rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.map-overlay-link:hover ~ .custom-map-marker .marker-badge {
+  transform: scale(1.12);
+  border-color: #0046cc;
+  box-shadow: 0 12px 32px rgba(0, 87, 255, 0.45), 0 0 0 6px rgba(255, 255, 255, 0.9);
+}
+
+.marker-logo {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+}
+
+.marker-pulse {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(0, 87, 255, 0.2);
+  animation: marker-pulse-glow 2.5s infinite ease-out;
+}
+
+@keyframes marker-pulse-glow {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
 }
 
 .map-action {
   position: absolute;
   right: 18px;
   bottom: 18px;
-  z-index: 1;
+  z-index: 4;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -2335,6 +2419,7 @@ address {
   text-align: center;
   backdrop-filter: blur(12px);
   box-shadow: 0 12px 30px rgba(17, 17, 17, 0.12);
+  transition: transform 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .map-action:hover,

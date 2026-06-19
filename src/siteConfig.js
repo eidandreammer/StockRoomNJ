@@ -11,8 +11,9 @@ export const storePhone = '(609) 459-5069'
 export const storePhoneHref = 'tel:+16094595069'
 
 const encodedStoreAddress = encodeURIComponent(storeAddress)
+const encodedMapQuery = encodeURIComponent(`The Stock Room, ${storeAddress}`)
 
-export const googleMapEmbedUrl = `https://www.google.com/maps?q=${encodedStoreAddress}&output=embed`
+export const googleMapEmbedUrl = `https://www.google.com/maps?q=${encodedMapQuery}&output=embed`
 export const googleDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedStoreAddress}`
 
 export const hours = [
