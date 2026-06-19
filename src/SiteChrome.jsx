@@ -549,7 +549,13 @@ function SiteFooter({ currentPage, footerRef }) {
         </div>
 
         <div className="container footer-bottom">
-          <p>&copy; {new Date().getFullYear()} The Stock Room. Wallington, NJ.</p>
+          <p>
+            &copy; {new Date().getFullYear()} The Stock Room. Wallington, NJ.
+            <span style={{ margin: '0 0.75rem', opacity: 0.5 }}>|</span>
+            <a href="./legal.html?doc=TOS" style={{ textDecoration: 'none', transition: 'color 0.15s' }} className="footer-legal-link">Terms of Service</a>
+            <span style={{ margin: '0 0.75rem', opacity: 0.5 }}>|</span>
+            <a href="./legal.html?doc=PRIVACY_POLICY" style={{ textDecoration: 'none', transition: 'color 0.15s' }} className="footer-legal-link">Privacy Policy</a>
+          </p>
           <div className="footer-social" aria-label="Social media">
             <a aria-label="Admin dashboard" href="./admin">
               <Icon name="admin" />

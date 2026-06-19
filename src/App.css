@@ -2595,6 +2595,15 @@ address {
   margin: 0;
 }
 
+.footer-legal-link {
+  color: inherit;
+}
+
+.footer-legal-link:hover {
+  color: #ffffff;
+  text-decoration: underline !important;
+}
+
 .footer-social {
   display: inline-flex;
   align-items: center;

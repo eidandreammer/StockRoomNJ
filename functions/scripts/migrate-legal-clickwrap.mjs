@@ -15,13 +15,13 @@ const documents = [
   {
     contentUrl: process.env.TOS_CONTENT_URL || '/Terms%20of%20Service%20-%20Stock%20Room%20NJ.md',
     documentType: 'TOS',
-    filePath: resolve(rootDir, 'Terms of Service - Stock Room NJ.md'),
+    filePath: resolve(rootDir, 'public', 'Terms of Service - Stock Room NJ.md'),
     versionNumber: process.env.TOS_VERSION || '1.0',
   },
   {
     contentUrl: process.env.PRIVACY_POLICY_CONTENT_URL || '/Privacy%20Policy%20-%20StockRoomNJ.md',
     documentType: 'PRIVACY_POLICY',
-    filePath: resolve(rootDir, 'Privacy Policy - StockRoomNJ.md'),
+    filePath: resolve(rootDir, 'public', 'Privacy Policy - StockRoomNJ.md'),
     versionNumber: process.env.PRIVACY_POLICY_VERSION || '1.0',
   },
 ]

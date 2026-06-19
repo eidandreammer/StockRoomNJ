@@ -21,6 +21,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         admin: resolve(import.meta.dirname, 'admin.html'),
         shop: resolve(import.meta.dirname, 'shop.html'),
+        legal: resolve(import.meta.dirname, 'legal.html'),
       },
     },
   },

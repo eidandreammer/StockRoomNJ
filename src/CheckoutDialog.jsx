@@ -8,6 +8,7 @@ import {
   loadActiveLegalDocuments,
   loadMissingLegalDocumentTypes,
 } from './legalDocuments'
+import LegalDocumentModal from './LegalDocumentModal'
 
 function buyerIdentity() {
   const user = auth?.currentUser
@@ -33,6 +34,7 @@ function CheckoutDialog({ items, onClose, subtotal }) {
   const [buyer, setBuyer] = useState(() => buyerIdentity())
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
+  const [activeModalDoc, setActiveModalDoc] = useState(null)
   const requiredDocuments = useMemo(
     () =>
       buyer.checkoutMode === 'guest'
@@ -191,7 +193,19 @@ function CheckoutDialog({ items, onClose, subtotal }) {
                 />
                 <span>
                   I agree to the{' '}
-                  <a href={document.content_url} rel="noreferrer" target="_blank">
+                  <a
+                    href={document.content_url}
+                    rel="noreferrer"
+                    target="_blank"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setActiveModalDoc({
+                        contentUrl: document.content_url,
+                        documentTitle: legalDocumentLabels[document.document_type] ?? document.document_type,
+                        effectiveDate: `Version ${document.version_number}`,
+                      })
+                    }}
+                  >
                     {legalDocumentLabels[document.document_type] ?? document.document_type}
                   </a>{' '}
                   version {document.version_number}.
@@ -205,6 +219,11 @@ function CheckoutDialog({ items, onClose, subtotal }) {
           {status === 'saving' ? 'Starting checkout...' : 'Continue to payment'}
         </button>
       </form>
+      <LegalDocumentModal
+        isOpen={activeModalDoc !== null}
+        onClose={() => setActiveModalDoc(null)}
+        {...activeModalDoc}
+      />
     </div>
   )
 }

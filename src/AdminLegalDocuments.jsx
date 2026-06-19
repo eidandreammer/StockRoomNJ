@@ -6,6 +6,7 @@ import {
   publishLegalDocument,
   uploadLegalDocumentFile,
 } from './legalDocuments'
+import LegalDocumentModal from './LegalDocumentModal'
 
 function emptyLegalForm() {
   return {
@@ -47,6 +48,7 @@ function AdminLegalDocuments({ user }) {
   const [status, setStatus] = useState('loading')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [activeModalDoc, setActiveModalDoc] = useState(null)
 
   const activeByType = useMemo(
     () => new Map(activeDocuments.map((document) => [document.document_type, document])),
@@ -153,7 +155,19 @@ function AdminLegalDocuments({ user }) {
                   <>
                     <p>Version {document.version_number}</p>
                     <span>{formatDate(document.effective_date)}</span>
-                    <a href={document.content_url} rel="noreferrer" target="_blank">
+                    <a
+                      href={document.content_url}
+                      rel="noreferrer"
+                      target="_blank"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setActiveModalDoc({
+                          contentUrl: document.content_url,
+                          documentTitle: legalDocumentLabels[document.document_type] ?? document.document_type,
+                          effectiveDate: `Version ${document.version_number}`,
+                        })
+                      }}
+                    >
                       Open document
                     </a>
                   </>
@@ -211,6 +225,11 @@ function AdminLegalDocuments({ user }) {
       </div>
 
       {status === 'loading' && <p className="admin-muted">Loading active legal documents...</p>}
+      <LegalDocumentModal
+        isOpen={activeModalDoc !== null}
+        onClose={() => setActiveModalDoc(null)}
+        {...activeModalDoc}
+      />
     </section>
   )
 }

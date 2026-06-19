@@ -7,6 +7,7 @@ import {
   loadActiveLegalDocuments,
   loadMissingLegalDocumentTypes,
 } from './legalDocuments'
+import LegalDocumentModal from './LegalDocumentModal'
 
 function LegalConsentPrompt() {
   const [user, setUser] = useState(auth?.currentUser ?? null)
@@ -14,6 +15,7 @@ function LegalConsentPrompt() {
   const [accepted, setAccepted] = useState({})
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
+  const [activeModalDoc, setActiveModalDoc] = useState(null)
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -144,7 +146,19 @@ function LegalConsentPrompt() {
                   />
                   <span>
                     I agree to the{' '}
-                    <a href={document.content_url} rel="noreferrer" target="_blank">
+                    <a
+                      href={document.content_url}
+                      rel="noreferrer"
+                      target="_blank"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setActiveModalDoc({
+                          contentUrl: document.content_url,
+                          documentTitle: legalDocumentLabels[document.document_type] ?? document.document_type,
+                          effectiveDate: `Version ${document.version_number}`,
+                        })
+                      }}
+                    >
                       {legalDocumentLabels[document.document_type] ?? document.document_type}
                     </a>{' '}
                     version {document.version_number}.
@@ -163,6 +177,11 @@ function LegalConsentPrompt() {
           {status === 'saving' ? 'Saving...' : 'Accept and continue'}
         </button>
       </form>
+      <LegalDocumentModal
+        isOpen={activeModalDoc !== null}
+        onClose={() => setActiveModalDoc(null)}
+        {...activeModalDoc}
+      />
     </div>
   )
 }
