@@ -40,6 +40,11 @@ async function publishDocument({ contentUrl, documentType, filePath, versionNumb
 
   await db.runTransaction(async (transaction) => {
     const current = await transaction.get(documentRef)
+    const activeSnapshot = await transaction.get(
+      db.collection('legal_documents')
+        .where('document_type', '==', documentType)
+        .where('is_active', '==', true),
+    )
 
     if (current.exists) {
       transaction.update(documentRef, {
@@ -58,12 +63,6 @@ async function publishDocument({ contentUrl, documentType, filePath, versionNumb
         version_number: versionNumber,
       })
     }
-
-    const activeSnapshot = await transaction.get(
-      db.collection('legal_documents')
-        .where('document_type', '==', documentType)
-        .where('is_active', '==', true),
-    )
 
     activeSnapshot.docs
       .filter((activeDoc) => activeDoc.id !== documentId)
