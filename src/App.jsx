@@ -3,9 +3,7 @@ import Masonry from './Masonry'
 import SiteShell, { Icon } from './SiteChrome'
 import GoogleMap from './GoogleMap'
 import {
-  footerLogo,
   googleDirectionsUrl,
-  googleMapEmbedUrl,
   hours,
   productGalleryUrl,
   storeAddress,

@@ -259,6 +259,11 @@ async function handlePublishLegal(request, response) {
   const versionNumber = requiredString(payload, 'version_number')
   const contentUrl = String(payload.content_url || '').trim()
 
+  if (!contentUrl) {
+    sendJson(response, 400, { error: 'content_url is required.' })
+    return
+  }
+
   if (!documentTypes.includes(documentType)) {
     sendJson(response, 400, { error: 'Unsupported document_type.' })
     return

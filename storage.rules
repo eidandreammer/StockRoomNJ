@@ -18,5 +18,22 @@ service firebase.storage {
           )
         );
     }
+
+    match /legal-documents/{documentType}/{versionNumber}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin()
+        && (
+          request.resource == null
+          || (
+            request.resource.size < 10 * 1024 * 1024
+            && (
+              request.resource.contentType == 'application/pdf'
+              || request.resource.contentType == 'text/markdown'
+              || request.resource.contentType == 'text/plain'
+              || request.resource.contentType == 'application/octet-stream'
+            )
+          )
+        );
+    }
   }
 }

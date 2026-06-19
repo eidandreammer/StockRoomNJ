@@ -12,10 +12,12 @@ shop inventory and an event calendar, and `/admin` provides the staff dashboard.
 
 1. Run `npm install`.
 2. Copy `.env.example` to `.env` and fill in the Firebase web app values.
-3. Create a Google reCAPTCHA v2 checkbox key for the deployed admin domain and set
+3. Create a Google Maps JavaScript API key and set
+   `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `.env` for the storefront location map.
+4. Create a Google reCAPTCHA v2 checkbox key for the deployed admin domain and set
    `VITE_RECAPTCHA_SITE_KEY` in `.env`. Localhost skips this check automatically.
-4. Run `npm run dev`.
-5. Open `/` for the storefront, `/shop` for the shop, or `/admin` for the dashboard.
+5. Run `npm run dev`.
+6. Open `/` for the storefront, `/shop` for the shop, or `/admin` for the dashboard.
 
 The Firebase emulator requires JDK 21 or newer. To develop against local Firebase services,
 run `npm run emulators`, set

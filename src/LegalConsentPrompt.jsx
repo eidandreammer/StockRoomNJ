@@ -1,0 +1,170 @@
+import { useEffect, useMemo, useState } from 'react'
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth, isFirebaseConfigured } from './firebase'
+import {
+  agreeToLegalDocument,
+  legalDocumentLabels,
+  loadActiveLegalDocuments,
+  loadMissingLegalDocumentTypes,
+} from './legalDocuments'
+
+function LegalConsentPrompt() {
+  const [user, setUser] = useState(auth?.currentUser ?? null)
+  const [documents, setDocuments] = useState([])
+  const [accepted, setAccepted] = useState({})
+  const [status, setStatus] = useState('idle')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !auth) {
+      return undefined
+    }
+
+    return onAuthStateChanged(auth, (nextUser) => setUser(nextUser))
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      return undefined
+    }
+
+    let isActive = true
+
+    async function loadConsentState() {
+      setStatus('loading')
+      setError('')
+
+      try {
+        const [activeDocuments, missingTypes] = await Promise.all([
+          loadActiveLegalDocuments(),
+          loadMissingLegalDocumentTypes(user.uid),
+        ])
+        const missingDocuments = activeDocuments.filter((document) =>
+          missingTypes.has(document.document_type),
+        )
+
+        if (isActive) {
+          setDocuments(missingDocuments)
+          setAccepted({})
+          setStatus('ready')
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(loadError.message)
+          setStatus('error')
+        }
+      }
+    }
+
+    loadConsentState()
+
+    return () => {
+      isActive = false
+    }
+  }, [user])
+
+  const canSubmit = useMemo(
+    () => documents.length > 0 && documents.every((document) => accepted[document.document_type]),
+    [accepted, documents],
+  )
+
+  const submitConsent = async (event) => {
+    event.preventDefault()
+
+    if (!canSubmit || !user) {
+      return
+    }
+
+    setStatus('saving')
+    setError('')
+
+    try {
+      for (const document of documents) {
+        await agreeToLegalDocument({
+          documentType: document.document_type,
+          user,
+          userId: user.uid,
+          versionNumber: document.version_number,
+        })
+      }
+
+      setDocuments([])
+      setAccepted({})
+      setStatus('ready')
+    } catch (saveError) {
+      setError(saveError.message)
+      setStatus('ready')
+    }
+  }
+
+  if (!user || (status === 'ready' && documents.length === 0) || status === 'idle') {
+    return null
+  }
+
+  return (
+    <div className="legal-consent-dialog">
+      <div className="drawer-backdrop" />
+      <form
+        aria-labelledby="legal-consent-title"
+        aria-modal="true"
+        className="checkout-panel legal-consent-panel"
+        role="dialog"
+        onSubmit={submitConsent}
+      >
+        <div className="cart-panel-head">
+          <div>
+            <p className="cart-kicker">Legal update</p>
+            <h2 id="legal-consent-title">Review updated terms</h2>
+          </div>
+        </div>
+
+        {status === 'loading' && <p className="checkout-note">Checking your legal agreements...</p>}
+        {error && <p className="checkout-error" role="alert">{error}</p>}
+
+        {documents.length > 0 && (
+          <>
+            <p className="checkout-note">
+              Your account needs to accept the latest documents before continuing.
+            </p>
+
+            <fieldset className="checkout-legal">
+              <legend>Required agreements</legend>
+              {documents.map((document) => (
+                <label key={document.id}>
+                  <input
+                    required
+                    checked={Boolean(accepted[document.document_type])}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setAccepted((current) => ({
+                        ...current,
+                        [document.document_type]: event.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    I agree to the{' '}
+                    <a href={document.content_url} rel="noreferrer" target="_blank">
+                      {legalDocumentLabels[document.document_type] ?? document.document_type}
+                    </a>{' '}
+                    version {document.version_number}.
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          </>
+        )}
+
+        <button
+          className="button primary checkout-button"
+          disabled={!canSubmit || status === 'saving'}
+          type="submit"
+        >
+          {status === 'saving' ? 'Saving...' : 'Accept and continue'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+export default LegalConsentPrompt

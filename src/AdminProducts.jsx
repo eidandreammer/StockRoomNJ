@@ -27,6 +27,8 @@ const priceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
 })
 
+const initialProductLimit = 6
+
 function emptyProductForm() {
   return {
     categoryId: shopCategories[0].id,
@@ -337,7 +339,12 @@ function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
         {product.imageCount > 1 && <span className="admin-product-image-count">{product.imageCount}</span>}
       </div>
       <div className="admin-product-details">
-        <span className={`admin-status is-${product.status}`}>{product.status}</span>
+        <div className="admin-product-banners">
+          <span className={`admin-status is-${product.status}`}>{product.status}</span>
+          <span className={`admin-sale-banner is-${product.saleMode === 'auction' ? 'bidding' : 'buying'}`}>
+            {product.saleMode === 'auction' ? 'Bidding' : 'Buying'}
+          </span>
+        </div>
         <h3>{product.name}</h3>
         <p>{product.description}</p>
         <div className="admin-product-meta">
@@ -345,7 +352,6 @@ function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
           {typeLabel && <span>{typeLabel}</span>}
           <span>{product.categoryName}</span>
           {product.imageCount > 0 && <span>{product.imageCount} image{product.imageCount === 1 ? '' : 's'}</span>}
-          {product.saleMode === 'auction' && <span>Bidding</span>}
           <strong>{priceFormatter.format(product.price)}</strong>
         </div>
       </div>
@@ -367,10 +373,12 @@ function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
 function AdminProducts({ user }) {
   const [editing, setEditing] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [isProductListExpanded, setIsProductListExpanded] = useState(false)
   const [isBatchOpen, setIsBatchOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [products, setProducts] = useState([])
+  const [productSearch, setProductSearch] = useState('')
   const [savingMessage, setSavingMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -389,10 +397,40 @@ function AdminProducts({ user }) {
     )
   }, [])
 
-  const visibleProducts = useMemo(
+  const productSearchQuery = productSearch.trim().toLowerCase()
+  const filteredProducts = useMemo(
     () => products.filter((product) => filter === 'all' || product.status === filter),
     [filter, products],
   )
+  const matchingProducts = useMemo(() => {
+    if (!productSearchQuery) {
+      return filteredProducts
+    }
+
+    return filteredProducts.filter((product) => {
+      const searchableText = [
+        product.itemId,
+        product.name,
+        product.description,
+        product.categoryName,
+        product.type,
+        product.typeLabel,
+        product.status,
+        product.saleMode,
+        priceFormatter.format(product.price),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return searchableText.includes(productSearchQuery)
+    })
+  }, [filteredProducts, productSearchQuery])
+  const shouldLimitProducts = !productSearchQuery && !isProductListExpanded
+  const visibleProducts = shouldLimitProducts
+    ? matchingProducts.slice(0, initialProductLimit)
+    : matchingProducts
+  const hasHiddenProducts = !productSearchQuery && matchingProducts.length > initialProductLimit
 
   const saveProduct = async (form) => {
     setIsSaving(true)
@@ -623,15 +661,39 @@ function AdminProducts({ user }) {
             className={filter === option ? 'is-active' : ''}
             key={option}
             type="button"
-            onClick={() => setFilter(option)}
+            onClick={() => {
+              setFilter(option)
+              setIsProductListExpanded(false)
+            }}
           >
             {option}
           </button>
         ))}
       </div>
 
+      <div className="admin-product-tools">
+        <label className="admin-product-search">
+          <span>Search products</span>
+          <input
+            type="search"
+            placeholder="Search by name, item ID, category, type, price..."
+            value={productSearch}
+            onChange={(event) => setProductSearch(event.target.value)}
+          />
+        </label>
+        <p className="admin-muted">
+          Showing {visibleProducts.length} of {matchingProducts.length} product
+          {matchingProducts.length === 1 ? '' : 's'}
+          {filter === 'all' ? '' : ` in ${filter}`}
+        </p>
+      </div>
+
       <div className="admin-product-list">
-        {visibleProducts.length === 0 && <p className="admin-muted">No products match this filter.</p>}
+        {visibleProducts.length === 0 && (
+          <p className="admin-muted">
+            {productSearchQuery ? 'No products match this search.' : 'No products match this filter.'}
+          </p>
+        )}
         {visibleProducts.map((product) => (
           <ProductListItem
             key={product.id}
@@ -645,6 +707,20 @@ function AdminProducts({ user }) {
           />
         ))}
       </div>
+
+      {hasHiddenProducts && (
+        <div className="admin-product-list-actions">
+          <button
+            className="admin-button is-secondary"
+            type="button"
+            onClick={() => setIsProductListExpanded((current) => !current)}
+          >
+            {isProductListExpanded
+              ? `Show first ${initialProductLimit}`
+              : `Show all ${matchingProducts.length} products`}
+          </button>
+        </div>
+      )}
     </section>
   )
 }

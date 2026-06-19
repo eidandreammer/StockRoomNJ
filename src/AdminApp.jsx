@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured } from './firebase'
 import AdminBids from './AdminBids'
+import AdminLegalDocuments from './AdminLegalDocuments'
 import AdminProducts from './AdminProducts'
 import {
   GOODS_OPTIONS,
@@ -1227,6 +1228,7 @@ function AdminApp() {
 
         <AdminProducts user={user} />
         <AdminBids user={user} />
+        <AdminLegalDocuments user={user} />
 
         {editing && (
           <EventEditor

@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiRequest } from './api'
 import { auth } from './firebase'
 import { getVisitorId } from './legalIdentity'
-
-const documentLabels = {
-  PRIVACY_POLICY: 'Privacy Policy',
-  TOS: 'Terms of Service',
-}
+import {
+  agreeToLegalDocument,
+  legalDocumentLabels,
+  loadActiveLegalDocuments,
+  loadMissingLegalDocumentTypes,
+} from './legalDocuments'
 
 function buyerIdentity() {
   const user = auth?.currentUser
@@ -53,14 +54,10 @@ function CheckoutDialog({ items, onClose, subtotal }) {
 
       try {
         const identity = buyerIdentity()
-        const activeResult = await apiRequest('/api/legal/active')
-        let documents = activeResult.documents ?? []
+        let documents = await loadActiveLegalDocuments()
 
         if (identity.checkoutMode === 'account') {
-          const consentResult = await apiRequest(
-            `/api/legal/check-consent?user_id=${encodeURIComponent(identity.userId)}`,
-          )
-          const missingTypes = new Set(consentResult.missing_document_types ?? [])
+          const missingTypes = await loadMissingLegalDocumentTypes(identity.userId)
           documents = documents.map((document) => ({
             ...document,
             missingForUser: missingTypes.has(document.document_type),
@@ -105,17 +102,14 @@ function CheckoutDialog({ items, onClose, subtotal }) {
         : {}
 
       for (const document of requiredDocuments) {
-        const agreement = await apiRequest('/api/legal/agree', {
-          body: JSON.stringify({
-            document_type: document.document_type,
-            user_id: buyer.userId,
-            version_number: document.version_number,
-          }),
-          headers: authHeaders,
-          method: 'POST',
+        const agreementId = await agreeToLegalDocument({
+          documentType: document.document_type,
+          user: currentUser,
+          userId: buyer.userId,
+          versionNumber: document.version_number,
         })
 
-        agreementResults.push(agreement.agreement_id)
+        agreementResults.push(agreementId)
       }
 
       const checkout = await apiRequest('/api/checkout/create-session', {
@@ -194,7 +188,7 @@ function CheckoutDialog({ items, onClose, subtotal }) {
                 <span>
                   I agree to the{' '}
                   <a href={document.content_url} rel="noreferrer" target="_blank">
-                    {documentLabels[document.document_type] ?? document.document_type}
+                    {legalDocumentLabels[document.document_type] ?? document.document_type}
                   </a>{' '}
                   version {document.version_number}.
                 </span>

@@ -1,5 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { footerLogo, storeAddress, googleDirectionsUrl } from './siteConfig'
+import { useEffect, useRef, useState } from 'react'
+import {
+  footerLogo,
+  storeAddress,
+  storeCoordinates,
+  googleMapsPlaceUrl,
+  googleMapEmbedUrl,
+} from './siteConfig'
+
+function MapStoreBanner() {
+  return (
+    <div className="map-store-banner" aria-label={`The Stock Room NJ address: ${storeAddress}`}>
+      <strong>The Stock Room NJ</strong>
+      <span>{storeAddress}</span>
+    </div>
+  )
+}
 
 function GoogleMap() {
   const mapRef = useRef(null)
@@ -14,8 +29,12 @@ function GoogleMap() {
       setIsLoading(false)
     }
 
-    // 2. Retrieve Firebase API key from environment variables
-    const apiKey = import.meta.env.VITE_FIREBASE_API_KEY
+    const apiKey = (
+      import.meta.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
+      ''
+    ).trim()
+
     if (!apiKey) {
       console.warn("No Google Maps API Key found. Falling back to styled iframe.")
       setHasError(true)
@@ -29,7 +48,7 @@ function GoogleMap() {
     const initGoogleMap = () => {
       if (!mapRef.current) return
       try {
-        const position = { lat: 40.8529267, lng: -74.1062973 }
+        const position = storeCoordinates
 
         // Brand Royal Blue and Coin Gray map styling config
         const MAP_STYLES = [
@@ -94,19 +113,38 @@ function GoogleMap() {
 
         // Custom Overlay View for HTML/CSS brand marker
         class HTMLMarker extends window.google.maps.OverlayView {
-          constructor(pos, html) {
+          constructor(pos, html, href) {
             super()
             this.pos = pos
             this.html = html
+            this.href = href
             this.div = null
           }
           onAdd() {
             const div = document.createElement('div')
             div.style.position = 'absolute'
+            div.style.cursor = 'pointer'
+            div.tabIndex = 0
+            div.setAttribute('role', 'link')
+            div.setAttribute('aria-label', 'Open The Stock Room NJ on Google Maps')
             div.innerHTML = this.html
+            const openMap = () => {
+              window.open(this.href, '_blank', 'noopener,noreferrer')
+            }
+            div.addEventListener('click', (event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              openMap()
+            })
+            div.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                openMap()
+              }
+            })
             this.div = div
             const panes = this.getPanes()
-            panes.overlayImage.appendChild(div)
+            panes.overlayMouseTarget.appendChild(div)
           }
           draw() {
             const overlayProjection = this.getProjection()
@@ -125,7 +163,7 @@ function GoogleMap() {
         }
 
         const markerHtml = `
-          <div class="custom-map-marker-js" style="transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; position: relative;">
+          <div class="custom-map-marker-js" title="Open The Stock Room NJ on Google Maps" style="transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; position: relative; cursor: pointer; text-decoration: none;">
             <div class="marker-pulse" style="position: absolute; width: 80px; height: 80px; border-radius: 50%; background: rgba(0, 87, 255, 0.2); animation: marker-pulse-glow 2.5s infinite ease-out;"></div>
             <div class="marker-badge" style="width: 48px; height: 48px; background: #ffffff; border: 3px solid #0057ff; border-radius: 50%; box-shadow: 0 8px 24px rgba(0, 87, 255, 0.35), 0 0 0 4px rgba(255, 255, 255, 0.8); display: flex; align-items: center; justify-content: center; overflow: hidden; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
               <img src="${footerLogo}" alt="Stock Room Logo" style="width: 82%; height: 82%; object-fit: contain;" />
@@ -135,7 +173,8 @@ function GoogleMap() {
 
         const customMarker = new HTMLMarker(
           new window.google.maps.LatLng(position.lat, position.lng),
-          markerHtml
+          markerHtml,
+          googleMapsPlaceUrl
         )
         customMarker.setMap(map)
 
@@ -150,7 +189,7 @@ function GoogleMap() {
     if (!script) {
       script = document.createElement('script')
       script.id = scriptId
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`
       script.async = true
       script.defer = true
       script.onload = initGoogleMap
@@ -170,7 +209,6 @@ function GoogleMap() {
   }, [])
 
   if (hasError) {
-    const googleMapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent('The Stock Room, ' + storeAddress)}&output=embed`
     return (
       <div className="map-panel-wrapper" style={{ position: 'relative', width: '100%', height: '100%' }}>
         <iframe
@@ -181,21 +219,20 @@ function GoogleMap() {
           src={googleMapEmbedUrl}
           title="Google Map for StockRoom NJ"
         />
+        <MapStoreBanner />
         <a
-          href={googleDirectionsUrl}
+          href={googleMapsPlaceUrl}
           target="_blank"
           rel="noreferrer"
-          className="map-overlay-link"
-          aria-label="Open directions on Google Maps"
+          className="custom-map-marker"
+          aria-label="Open The Stock Room NJ on Google Maps"
+          title="Open The Stock Room NJ on Google Maps"
         >
-          <div className="map-overlay" />
-        </a>
-        <div className="custom-map-marker">
           <div className="marker-pulse" />
           <div className="marker-badge">
             <img src={footerLogo} alt="Stock Room Logo" className="marker-logo" />
           </div>
-        </div>
+        </a>
       </div>
     )
   }
@@ -203,8 +240,9 @@ function GoogleMap() {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: '460px' }} />
+      <MapStoreBanner />
       {isLoading && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justify: 'center', background: 'var(--color-surface)', zIndex: 5 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-surface)', zIndex: 5 }}>
           <div style={{ color: 'var(--color-muted)', fontSize: '0.9rem' }}>Loading map...</div>
         </div>
       )}

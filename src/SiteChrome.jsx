@@ -13,6 +13,7 @@ import {
 import { useShoppingCart } from './ShoppingCartContext'
 import { ShoppingCartProvider } from './ShoppingCartProvider'
 import CheckoutDialog from './CheckoutDialog'
+import LegalConsentPrompt from './LegalConsentPrompt'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -601,6 +602,7 @@ function SiteShell({ children, currentPage = 'home' }) {
         <SiteHeader currentPage={currentPage} isFooterVisible={isFooterVisible} />
         {children}
         <SiteFooter currentPage={currentPage} footerRef={footerRef} />
+        <LegalConsentPrompt />
       </div>
     </ShoppingCartProvider>
   )
