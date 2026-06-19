@@ -887,6 +887,14 @@
   width: min(560px, 100%);
 }
 
+.admin-recaptcha-widget {
+  display: flex;
+  min-height: 78px;
+  max-width: 100%;
+  align-items: center;
+  overflow-x: auto;
+}
+
 .admin-totp-setup {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

@@ -32,6 +32,13 @@ const socialLinks = [
 ]
 
 const icons = {
+  admin: (
+    <>
+      <rect x="5" y="10" width="14" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      <path d="M12 14v2" />
+    </>
+  ),
   arrow: (
     <>
       <path d="M5 12h14" />
@@ -130,38 +137,40 @@ function ShoppingCartDrawer({ isOpen, onClose }) {
 
         {items.length > 0 ? (
           <>
-            <ul className="cart-item-list" aria-label="Shopping cart items">
-              {items.map((item) => (
-                <li className="cart-item" key={item.id}>
-                  <div className="cart-item-media">
-                    {item.image ? (
-                      <img src={item.image} alt="" />
-                    ) : (
-                      <span>No image</span>
-                    )}
-                  </div>
-                  <div className="cart-item-content">
-                    <div>
-                      {item.categoryName && (
-                        <span className="cart-item-category">{item.categoryName}</span>
+            <div className="cart-scroll-area">
+              <ul className="cart-item-list" aria-label="Shopping cart items">
+                {items.map((item) => (
+                  <li className="cart-item" key={item.id}>
+                    <div className="cart-item-media">
+                      {item.image ? (
+                        <img src={item.image} alt="" />
+                      ) : (
+                        <span>No image</span>
                       )}
-                      <h3>{item.name}</h3>
-                      <p>
-                        {priceFormatter.format(item.price)}
-                        {item.quantity > 1 ? ` x ${item.quantity}` : ''}
-                      </p>
                     </div>
-                    <button
-                      className="cart-remove-button"
-                      type="button"
-                      onClick={() => removeItem(item.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    <div className="cart-item-content">
+                      <div>
+                        {item.categoryName && (
+                          <span className="cart-item-category">{item.categoryName}</span>
+                        )}
+                        <h3>{item.name}</h3>
+                        <p>
+                          {priceFormatter.format(item.price)}
+                          {item.quantity > 1 ? ` x ${item.quantity}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        className="cart-remove-button"
+                        type="button"
+                        onClick={() => removeItem(item.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             <div className="cart-summary">
               <span>
@@ -203,7 +212,7 @@ function SiteHeader({ currentPage, isFooterVisible }) {
   })
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { totalItems } = useShoppingCart()
+  const { cartAnimationKey, totalItems } = useShoppingCart()
   const headerRef = useRef(null)
   const scrollFrame = useRef(null)
   const homeHref = getHomeHref(currentPage)
@@ -382,10 +391,11 @@ function SiteHeader({ currentPage, isFooterVisible }) {
 
             <div className="header-actions">
               <button
+                key={`cart-toggle-${cartAnimationKey}`}
                 aria-controls="shopping-cart"
                 aria-expanded={isCartOpen}
                 aria-label={`Open shopping cart with ${totalItems} item${totalItems === 1 ? '' : 's'}`}
-                className="icon-button cart-toggle"
+                className={`icon-button cart-toggle${cartAnimationKey ? ' is-cart-adding' : ''}`}
                 type="button"
                 onClick={openCart}
               >
@@ -513,6 +523,9 @@ function SiteFooter({ currentPage, footerRef }) {
         <div className="container footer-bottom">
           <p>&copy; {new Date().getFullYear()} The Stock Room. Wallington, NJ.</p>
           <div className="footer-social" aria-label="Social media">
+            <a aria-label="Admin dashboard" href="./admin.html">
+              <Icon name="admin" />
+            </a>
             {socialLinks.map((social) => (
               <a
                 key={social.label}

@@ -44,6 +44,7 @@ function readStoredCart() {
 
 export function ShoppingCartProvider({ children }) {
   const [items, setItems] = useState(readStoredCart)
+  const [cartAnimationKey, setCartAnimationKey] = useState(0)
 
   useEffect(() => {
     try {
@@ -57,6 +58,7 @@ export function ShoppingCartProvider({ children }) {
     const addItem = (product) => {
       const nextItem = normalizeCartItem(product)
 
+      setCartAnimationKey((currentKey) => currentKey + 1)
       setItems((currentItems) => {
         const existingItem = currentItems.find((item) => item.id === nextItem.id)
 
@@ -85,12 +87,13 @@ export function ShoppingCartProvider({ children }) {
 
     return {
       addItem,
+      cartAnimationKey,
       items,
       removeItem,
       subtotal,
       totalItems,
     }
-  }, [items])
+  }, [cartAnimationKey, items])
 
   return (
     <ShoppingCartContext.Provider value={value}>

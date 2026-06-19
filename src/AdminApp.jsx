@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DateTime } from 'luxon'
 import QRCode from 'qrcode'
 import {
@@ -36,6 +36,58 @@ const now = () => DateTime.now().setZone(STORE_TIME_ZONE)
 
 const AUTH_APP_NAME = 'StockRoom NJ Admin'
 const TOTP_DISPLAY_NAME = 'Authenticator app'
+const RECAPTCHA_SCRIPT_ID = 'stockroom-recaptcha-script'
+const RECAPTCHA_SCRIPT_SRC = 'https://www.google.com/recaptcha/api.js?render=explicit'
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY?.trim()
+const RECAPTCHA_DISABLED = import.meta.env.VITE_DISABLE_RECAPTCHA === 'true'
+
+let recaptchaScriptPromise = null
+
+function loadRecaptchaScript() {
+  if (globalThis.grecaptcha?.render) {
+    return Promise.resolve(globalThis.grecaptcha)
+  }
+
+  if (recaptchaScriptPromise) {
+    return recaptchaScriptPromise
+  }
+
+  recaptchaScriptPromise = new Promise((resolve, reject) => {
+    const resolveReady = () => {
+      if (!globalThis.grecaptcha?.ready) {
+        reject(new Error('reCAPTCHA did not initialize. Refresh the page and try again.'))
+        return
+      }
+
+      globalThis.grecaptcha.ready(() => resolve(globalThis.grecaptcha))
+    }
+
+    const existingScript = document.getElementById(RECAPTCHA_SCRIPT_ID)
+
+    if (existingScript) {
+      existingScript.addEventListener('load', resolveReady, { once: true })
+      existingScript.addEventListener('error', () => reject(new Error('Could not load reCAPTCHA.')), {
+        once: true,
+      })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = RECAPTCHA_SCRIPT_ID
+    script.src = RECAPTCHA_SCRIPT_SRC
+    script.async = true
+    script.defer = true
+    script.onload = resolveReady
+    script.onerror = () => {
+      recaptchaScriptPromise = null
+      reject(new Error('Could not load reCAPTCHA. Check the site key domain settings.'))
+    }
+
+    document.head.appendChild(script)
+  })
+
+  return recaptchaScriptPromise
+}
 
 function hasTotpFactor(user) {
   return multiFactor(user).enrolledFactors.some(
@@ -731,7 +783,116 @@ function TotpEnrollment({ user, onComplete }) {
   )
 }
 
+function RecaptchaGate({ onVerified }) {
+  const containerRef = useRef(null)
+  const widgetIdRef = useRef(null)
+  const [status, setStatus] = useState(RECAPTCHA_SITE_KEY ? 'loading' : 'missing')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!RECAPTCHA_SITE_KEY) {
+      return undefined
+    }
+
+    let isActive = true
+
+    async function renderRecaptcha() {
+      setStatus('loading')
+      setError('')
+
+      try {
+        const grecaptcha = await loadRecaptchaScript()
+
+        if (!isActive || !containerRef.current || widgetIdRef.current !== null) {
+          return
+        }
+
+        widgetIdRef.current = grecaptcha.render(containerRef.current, {
+          sitekey: RECAPTCHA_SITE_KEY,
+          callback: (token) => {
+            if (!token || !isActive) {
+              return
+            }
+
+            setStatus('verified')
+            onVerified()
+          },
+          'expired-callback': () => {
+            if (!isActive) {
+              return
+            }
+
+            setStatus('expired')
+            setError('The reCAPTCHA check expired. Complete it again to continue.')
+          },
+          'error-callback': () => {
+            if (!isActive) {
+              return
+            }
+
+            setStatus('error')
+            setError('reCAPTCHA could not verify this browser. Refresh the page and try again.')
+          },
+        })
+        setStatus('ready')
+      } catch (recaptchaError) {
+        if (!isActive) {
+          return
+        }
+
+        setStatus('error')
+        setError(recaptchaError.message ?? 'Could not load reCAPTCHA.')
+      }
+    }
+
+    renderRecaptcha()
+
+    return () => {
+      isActive = false
+
+      if (widgetIdRef.current !== null && globalThis.grecaptcha?.reset) {
+        try {
+          globalThis.grecaptcha.reset(widgetIdRef.current)
+        } catch {
+          // Google owns the iframe lifecycle; unmount should not block React cleanup.
+        }
+      }
+
+      widgetIdRef.current = null
+    }
+  }, [onVerified])
+
+  if (status === 'missing') {
+    return (
+      <main className="admin-auth-shell">
+        <section className="admin-auth-card">
+          <p className="admin-kicker">StockRoom NJ</p>
+          <h1>reCAPTCHA setup required</h1>
+          <p>Add <code>VITE_RECAPTCHA_SITE_KEY</code> to the Vite environment variables before showing the dashboard login.</p>
+          <a href="./">Back to storefront</a>
+        </section>
+      </main>
+    )
+  }
+
+  return (
+    <main className="admin-auth-shell">
+      <section className="admin-auth-card" aria-live="polite">
+        <p className="admin-kicker">StockRoom NJ</p>
+        <h1>Security check</h1>
+        <p>Complete reCAPTCHA to continue to the admin sign-in.</p>
+        {error && <p className="admin-alert is-error">{error}</p>}
+        <div className="admin-recaptcha-widget" ref={containerRef} />
+        {status === 'loading' && <p className="admin-muted">Loading reCAPTCHA...</p>}
+        {status === 'verified' && <p className="admin-muted">Verification complete.</p>}
+        <a href="./">Back to storefront</a>
+      </section>
+    </main>
+  )
+}
+
 function Login() {
+  const [isRecaptchaVerified, setIsRecaptchaVerified] = useState(RECAPTCHA_DISABLED)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mfaResolver, setMfaResolver] = useState(null)
@@ -793,6 +954,10 @@ function Login() {
       setError(formatAuthError(totpError))
       setIsSubmitting(false)
     }
+  }
+
+  if (!isRecaptchaVerified) {
+    return <RecaptchaGate onVerified={() => setIsRecaptchaVerified(true)} />
   }
 
   if (mfaResolver) {

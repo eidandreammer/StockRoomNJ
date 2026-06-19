@@ -12,8 +12,10 @@ shop inventory and an event calendar, and `admin.html` provides the staff dashbo
 
 1. Run `npm install`.
 2. Copy `.env.example` to `.env` and fill in the Firebase web app values.
-3. Run `npm run dev`.
-4. Open `/` for the storefront, `/gallery.html` for the shop, or `/admin.html` for the dashboard.
+3. Create a Google reCAPTCHA v2 checkbox key for the admin domain and set
+   `VITE_RECAPTCHA_SITE_KEY` in `.env`.
+4. Run `npm run dev`.
+5. Open `/` for the storefront, `/gallery.html` for the shop, or `/admin.html` for the dashboard.
 
 The Firebase emulator requires JDK 21 or newer. To develop against local Firebase services,
 run `npm run emulators`, set
@@ -23,10 +25,12 @@ run `npm run emulators`, set
 
 1. Create a Firebase project and register a web app.
 2. Enable Firestore, Firebase Storage, and Email/Password authentication.
-3. Create each staff account in Firebase Console under Authentication.
-4. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
+3. Create a Google reCAPTCHA v2 checkbox site key for each dashboard domain, including
+   localhost if needed for local testing.
+4. Create each staff account in Firebase Console under Authentication.
+5. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
    may contain `{ "enabled": true }`; authorization is based on the document existing.
-5. Run `firebase login`, select the project with `firebase use --add`, and deploy the
+6. Run `firebase login`, select the project with `firebase use --add`, and deploy the
    checked-in Firestore and Storage rules with `npm run deploy:rules`.
 
 Public visitors can read only published products and published events. Approved staff can

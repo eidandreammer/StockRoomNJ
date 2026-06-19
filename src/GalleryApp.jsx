@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
+import AddToCartButton from './AddToCartButton'
 import ProductDetailModal from './ProductDetailModal'
 import SiteShell from './SiteChrome'
-import { useShoppingCart } from './ShoppingCartContext'
 import { shopCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
 import './App.css'
@@ -13,8 +13,6 @@ const priceFormatter = new Intl.NumberFormat('en-US', {
 })
 
 function ShopProductCard({ onSelect, product }) {
-  const { addItem } = useShoppingCart()
-
   return (
     <article className="shop-product-card">
       <button
@@ -46,14 +44,10 @@ function ShopProductCard({ onSelect, product }) {
         </div>
       </button>
       <div className="shop-product-actions">
-        <button
-          aria-label={`Add ${product.name} to shopping cart`}
+        <AddToCartButton
           className="button primary shop-add-cart"
-          type="button"
-          onClick={() => addItem(product)}
-        >
-          Add to cart
-        </button>
+          product={product}
+        />
       </div>
     </article>
   )

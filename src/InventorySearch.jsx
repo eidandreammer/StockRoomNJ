@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import AddToCartButton from './AddToCartButton'
 import ProductDetailModal from './ProductDetailModal'
-import { useShoppingCart } from './ShoppingCartContext'
 import { shopProductCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
 
@@ -22,7 +22,6 @@ const parsePriceInput = (value) => {
 }
 
 function InventorySearch() {
-  const { addItem } = useShoppingCart()
   const { error, products, status } = usePublishedProducts()
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [query, setQuery] = useState('')
@@ -314,14 +313,10 @@ function InventorySearch() {
                       </div>
                     </button>
                     <div className="inventory-product-actions">
-                      <button
-                        aria-label={`Add ${product.name} to shopping cart`}
+                      <AddToCartButton
                         className="button primary inventory-add-cart"
-                        type="button"
-                        onClick={() => addItem(product)}
-                      >
-                        Add to cart
-                      </button>
+                        product={product}
+                      />
                     </div>
                   </article>
                 ))}
