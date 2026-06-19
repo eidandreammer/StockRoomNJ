@@ -17,6 +17,28 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /legal_documents/{documentId} {
+      allow get, list: if resource.data.is_active == true || isAdmin();
+      allow write: if false;
+    }
+
+    match /user_agreements/{agreementId} {
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.user_id == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /bids/{bidId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;

@@ -342,6 +342,99 @@
   min-height: 44px;
 }
 
+.quick-bid {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
+
+.quick-bid-head,
+.checkout-summary-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quick-bid-head span,
+.quick-bid-email span,
+.quick-bid-custom span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.quick-bid p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.quick-bid-actions,
+.quick-bid-custom {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quick-bid button,
+.quick-bid input {
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.quick-bid button {
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.quick-bid button:hover,
+.quick-bid button:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.quick-bid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.quick-bid-email,
+.quick-bid-custom label {
+  display: grid;
+  gap: 5px;
+}
+
+.quick-bid-email input,
+.quick-bid-custom input {
+  width: 100%;
+  padding: 7px 8px;
+}
+
+.quick-bid-error,
+.quick-bid-message {
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.quick-bid-error,
+.quick-bid-message.is-error {
+  color: #b42318;
+}
+
+.quick-bid-message.is-success {
+  color: #067647;
+}
+
 .gallery-empty-state p {
   margin: 0;
   color: var(--color-text);

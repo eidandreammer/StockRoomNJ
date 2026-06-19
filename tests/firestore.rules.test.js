@@ -50,6 +50,28 @@ async function seed() {
       status: 'draft',
     })
     await setDoc(doc(database, 'admins', 'admin-user'), { enabled: true })
+    await setDoc(doc(database, 'legal_documents', 'TOS_1.0'), {
+      document_type: 'TOS',
+      is_active: true,
+      version_number: '1.0',
+    })
+    await setDoc(doc(database, 'legal_documents', 'TOS_0.9'), {
+      document_type: 'TOS',
+      is_active: false,
+      version_number: '0.9',
+    })
+    await setDoc(doc(database, 'user_agreements', 'agreement-1'), {
+      document_id: 'TOS_1.0',
+      user_id: 'staff-user',
+    })
+    await setDoc(doc(database, 'bids', 'bid-1'), {
+      amount: 25,
+      status: 'pending_admin_approval',
+    })
+    await setDoc(doc(database, 'orders', 'order-1'), {
+      status: 'approved_awaiting_payment',
+      userId: 'staff-user',
+    })
   })
 }
 
@@ -115,5 +137,40 @@ describe('Firestore product rules', () => {
     await assertSucceeds(getDoc(doc(database, 'products', 'draft-product')))
     await assertSucceeds(updateDoc(doc(database, 'products', 'new-product'), { status: 'published' }))
     await assertSucceeds(deleteDoc(doc(database, 'products', 'new-product')))
+  })
+})
+
+describe('Firestore legal and commerce rules', () => {
+  it('allows public reads for active legal documents only', async () => {
+    await seed()
+    const database = testEnv.unauthenticatedContext().firestore()
+
+    await assertSucceeds(getDoc(doc(database, 'legal_documents', 'TOS_1.0')))
+    await assertFails(getDoc(doc(database, 'legal_documents', 'TOS_0.9')))
+    await assertSucceeds(
+      getDocs(query(collection(database, 'legal_documents'), where('is_active', '==', true))),
+    )
+  })
+
+  it('keeps agreement, bid, and order writes server-owned', async () => {
+    await seed()
+    const publicDb = testEnv.unauthenticatedContext().firestore()
+    const staffDb = testEnv.authenticatedContext('staff-user').firestore()
+
+    await assertFails(setDoc(doc(publicDb, 'user_agreements', 'new-agreement'), { user_id: 'guest' }))
+    await assertFails(setDoc(doc(staffDb, 'bids', 'new-bid'), { amount: 30 }))
+    await assertFails(updateDoc(doc(staffDb, 'orders', 'order-1'), { status: 'paid' }))
+  })
+
+  it('allows admins to read bids and users to read their own orders and agreements', async () => {
+    await seed()
+    const adminDb = testEnv.authenticatedContext('admin-user').firestore()
+    const staffDb = testEnv.authenticatedContext('staff-user').firestore()
+    const otherDb = testEnv.authenticatedContext('other-user').firestore()
+
+    await assertSucceeds(getDoc(doc(adminDb, 'bids', 'bid-1')))
+    await assertSucceeds(getDoc(doc(staffDb, 'orders', 'order-1')))
+    await assertSucceeds(getDoc(doc(staffDb, 'user_agreements', 'agreement-1')))
+    await assertFails(getDoc(doc(otherDb, 'orders', 'order-1')))
   })
 })

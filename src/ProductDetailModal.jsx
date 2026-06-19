@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import AddToCartButton from './AddToCartButton'
+import QuickBid from './QuickBid'
 import './ProductDetailModal.css'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
@@ -43,6 +44,8 @@ function ProductDetailModal({ onClose, product }) {
   const typeLabel = product?.type && product?.typeLabel
     ? `${product.type} ${product.typeLabel}`
     : product?.typeLabel || product?.type
+  const isAuction = product?.saleMode === 'auction'
+  const currentBidPrice = product?.currentBidPrice || product?.price || 0
 
   useEffect(() => {
     if (!product) {
@@ -125,12 +128,22 @@ function ProductDetailModal({ onClose, product }) {
             </button>
           </div>
 
-          <strong className="product-detail-price">{priceFormatter.format(product.price)}</strong>
+          <strong className="product-detail-price">
+            {priceFormatter.format(isAuction ? currentBidPrice : product.price)}
+          </strong>
 
-          <AddToCartButton
-            className="button primary product-detail-add-cart"
-            product={product}
-          />
+          {isAuction ? (
+            <QuickBid
+              className="product-detail-quick-bid"
+              currentPrice={currentBidPrice}
+              product={product}
+            />
+          ) : (
+            <AddToCartButton
+              className="button primary product-detail-add-cart"
+              product={product}
+            />
+          )}
 
           {product.description && (
             <p className="product-detail-description">{product.description}</p>

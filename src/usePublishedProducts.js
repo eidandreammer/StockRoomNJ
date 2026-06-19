@@ -39,9 +39,12 @@ export function normalizeProduct(productDoc) {
 
   return {
     id: productDoc.id,
+    auctionEndsAt: data.auctionEndsAt ?? null,
+    auctionStatus: data.auctionStatus ?? 'open',
     categoryId: data.categoryId ?? '',
     categoryName: data.categoryName ?? '',
     createdAt: data.createdAt ?? null,
+    currentBidPrice: Number(data.currentBidPrice) || Number(data.price) || 0,
     description: data.description ?? '',
     image: imageUrl,
     imageCount: Number(data.imageCount) || images.length || (imageUrl ? 1 : 0),
@@ -51,6 +54,7 @@ export function normalizeProduct(productDoc) {
     itemTypeCode: data.itemTypeCode ?? data.type ?? '',
     name: data.name ?? '',
     price: Number(data.price) || 0,
+    saleMode: data.saleMode ?? (data.auctionEnabled ? 'auction' : 'fixed'),
     status: data.status ?? 'draft',
     type: data.type ?? data.itemTypeCode ?? '',
     typeLabel: data.typeLabel ?? '',

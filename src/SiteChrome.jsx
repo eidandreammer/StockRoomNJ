@@ -12,6 +12,7 @@ import {
 } from './siteConfig'
 import { useShoppingCart } from './ShoppingCartContext'
 import { ShoppingCartProvider } from './ShoppingCartProvider'
+import CheckoutDialog from './CheckoutDialog'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -101,6 +102,8 @@ export function Icon({ name, className = '' }) {
 
 function ShoppingCartDrawer({ isOpen, onClose }) {
   const { items, removeItem, subtotal, totalItems } = useShoppingCart()
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  const formattedSubtotal = priceFormatter.format(subtotal)
 
   if (!isOpen) {
     return null
@@ -176,8 +179,15 @@ function ShoppingCartDrawer({ isOpen, onClose }) {
               <span>
                 {totalItems} item{totalItems === 1 ? '' : 's'}
               </span>
-              <strong>{priceFormatter.format(subtotal)}</strong>
+              <strong>{formattedSubtotal}</strong>
             </div>
+            <button
+              className="button primary cart-checkout-button"
+              type="button"
+              onClick={() => setIsCheckoutOpen(true)}
+            >
+              Checkout
+            </button>
           </>
         ) : (
           <div className="cart-empty-state">
@@ -186,6 +196,13 @@ function ShoppingCartDrawer({ isOpen, onClose }) {
           </div>
         )}
       </aside>
+      {isCheckoutOpen && (
+        <CheckoutDialog
+          items={items}
+          subtotal={formattedSubtotal}
+          onClose={() => setIsCheckoutOpen(false)}
+        />
+      )}
     </div>
   )
 }

@@ -21,6 +21,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured } from './firebase'
+import AdminBids from './AdminBids'
 import AdminProducts from './AdminProducts'
 import {
   GOODS_OPTIONS,
@@ -1222,6 +1223,7 @@ function AdminApp() {
         {error && <p className="admin-alert is-error">{error}</p>}
 
         <AdminProducts user={user} />
+        <AdminBids user={user} />
 
         {editing && (
           <EventEditor

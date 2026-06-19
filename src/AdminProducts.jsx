@@ -37,6 +37,7 @@ function emptyProductForm() {
     itemTypeCode: '',
     name: '',
     price: '',
+    saleMode: 'fixed',
     status: 'published',
   }
 }
@@ -55,6 +56,7 @@ function recordToProductForm(record) {
     itemTypeCode: record.itemTypeCode ?? record.type ?? '',
     name: record.name ?? '',
     price: record.price === undefined ? '' : String(record.price),
+    saleMode: record.saleMode ?? 'fixed',
     status: record.status ?? 'published',
   }
 }
@@ -85,6 +87,10 @@ function validateProductForm(form) {
 
   if (!form.categoryId) {
     return 'Choose a shop category.'
+  }
+
+  if (!['fixed', 'auction'].includes(form.saleMode)) {
+    return 'Choose a sale mode.'
   }
 
   if (!form.imageUrl && !form.imageFile) {
@@ -259,6 +265,13 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
             </select>
           </label>
           <label>
+            <span>Sale mode</span>
+            <select value={form.saleMode} onChange={(event) => update('saleMode', event.target.value)}>
+              <option value="fixed">Buy now</option>
+              <option value="auction">Bidding</option>
+            </select>
+          </label>
+          <label>
             <span>Status</span>
             <select value={form.status} onChange={(event) => update('status', event.target.value)}>
               <option value="published">Published</option>
@@ -332,6 +345,7 @@ function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
           {typeLabel && <span>{typeLabel}</span>}
           <span>{product.categoryName}</span>
           {product.imageCount > 0 && <span>{product.imageCount} image{product.imageCount === 1 ? '' : 's'}</span>}
+          {product.saleMode === 'auction' && <span>Bidding</span>}
           <strong>{priceFormatter.format(product.price)}</strong>
         </div>
       </div>
@@ -394,15 +408,21 @@ function AdminProducts({ user }) {
       const updatedImages = imageFields.imagePath
         ? mergePrimaryImage(editing?.images ?? [], imageFields)
         : editing?.images ?? []
+      const saleMode = form.saleMode === 'auction' ? 'auction' : 'fixed'
       const payload = {
+        auctionStatus: saleMode === 'auction' ? editing?.auctionStatus ?? 'open' : null,
         categoryId: selectedCategory.id,
         categoryName: selectedCategory.label,
+        currentBidPrice: saleMode === 'auction'
+          ? editing?.currentBidPrice || Math.round(price * 100) / 100
+          : null,
         description: form.description.trim(),
         imageCount: updatedImages.length || (form.imageUrl ? 1 : 0),
         images: updatedImages,
         itemTypeCode: selectedType?.code ?? '',
         name: form.name.trim(),
         price: Math.round(price * 100) / 100,
+        saleMode,
         searchText: [
           form.itemId,
           form.name,
@@ -496,6 +516,11 @@ function AdminProducts({ user }) {
             itemTypeCode: selectedType.code,
             name: groupedDraft.draft.name.trim(),
             price: Math.round(price * 100) / 100,
+            saleMode: groupedDraft.draft.saleMode === 'auction' ? 'auction' : 'fixed',
+            currentBidPrice: groupedDraft.draft.saleMode === 'auction'
+              ? Math.round(price * 100) / 100
+              : null,
+            auctionStatus: groupedDraft.draft.saleMode === 'auction' ? 'open' : null,
             searchText: [
               productRef.id,
               groupedDraft.draft.name,

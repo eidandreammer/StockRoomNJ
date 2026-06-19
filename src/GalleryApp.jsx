@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import AddToCartButton from './AddToCartButton'
 import ProductDetailModal from './ProductDetailModal'
+import QuickBid from './QuickBid'
 import SiteShell from './SiteChrome'
 import { shopCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
@@ -13,6 +14,9 @@ const priceFormatter = new Intl.NumberFormat('en-US', {
 })
 
 function ShopProductCard({ onSelect, product }) {
+  const isAuction = product.saleMode === 'auction'
+  const displayPrice = isAuction ? product.currentBidPrice || product.price : product.price
+
   return (
     <article className="shop-product-card">
       <button
@@ -38,16 +42,20 @@ function ShopProductCard({ onSelect, product }) {
             <p>{product.description}</p>
           </div>
           <div className="shop-product-meta">
-            <span>{product.categoryName}</span>
-            <strong>{priceFormatter.format(product.price)}</strong>
+            <span>{isAuction ? 'Bidding open' : product.categoryName}</span>
+            <strong>{priceFormatter.format(displayPrice)}</strong>
           </div>
         </div>
       </button>
       <div className="shop-product-actions">
-        <AddToCartButton
-          className="button primary shop-add-cart"
-          product={product}
-        />
+        {isAuction ? (
+          <QuickBid currentPrice={displayPrice} product={product} />
+        ) : (
+          <AddToCartButton
+            className="button primary shop-add-cart"
+            product={product}
+          />
+        )}
       </div>
     </article>
   )
