@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { doc, getDoc } from 'firebase/firestore'
 import { apiRequest } from './api'
-import { auth } from './firebase'
+import { auth, db } from './firebase'
 import { getVisitorId } from './legalIdentity'
 import {
   agreeToLegalDocument,
@@ -64,6 +65,18 @@ function CheckoutDialog({ items, onClose, subtotal }) {
             ...document,
             missingForUser: missingTypes.has(document.document_type),
           }))
+
+          try {
+            const userDocSnap = await getDoc(doc(db, 'users', identity.userId))
+            if (userDocSnap.exists()) {
+              const data = userDocSnap.data()
+              if (data.email) {
+                identity.email = data.email
+              }
+            }
+          } catch (docError) {
+            console.error('Error fetching user profile for checkout email:', docError)
+          }
         }
 
         if (isActive) {

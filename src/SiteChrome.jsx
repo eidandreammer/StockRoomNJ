@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth, isFirebaseConfigured } from './firebase'
+import AccountDrawer from './AccountDrawer'
 import {
   brandLogo,
   footerLogo,
@@ -34,6 +37,12 @@ const socialLinks = [
 ]
 
 const icons = {
+  profile: (
+    <>
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </>
+  ),
   admin: (
     <>
       <rect x="5" y="10" width="14" height="10" rx="2" />
@@ -240,6 +249,8 @@ function SiteHeader({ currentPage, isFooterVisible }) {
   })
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isAccountOpen, setIsAccountOpen] = useState(false)
+  const [user, setUser] = useState(null)
   const { cartAnimationKey, totalItems } = useShoppingCart()
   const headerRef = useRef(null)
   const scrollFrame = useRef(null)
@@ -251,6 +262,7 @@ function SiteHeader({ currentPage, isFooterVisible }) {
       if (event.key === 'Escape') {
         setIsCartOpen(false)
         setIsMenuOpen(false)
+        setIsAccountOpen(false)
       }
     }
 
@@ -260,10 +272,18 @@ function SiteHeader({ currentPage, isFooterVisible }) {
   }, [])
 
   useEffect(() => {
-    document.body.classList.toggle('is-locked', isMenuOpen || isCartOpen)
+    document.body.classList.toggle('is-locked', isMenuOpen || isCartOpen || isAccountOpen)
 
     return () => document.body.classList.remove('is-locked')
-  }, [isCartOpen, isMenuOpen])
+  }, [isCartOpen, isMenuOpen, isAccountOpen])
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !auth) {
+      return undefined
+    }
+
+    return onAuthStateChanged(auth, (nextUser) => setUser(nextUser))
+  }, [])
 
   useEffect(() => {
     const updateHeader = () => {
@@ -419,6 +439,21 @@ function SiteHeader({ currentPage, isFooterVisible }) {
 
             <div className="header-actions">
               <button
+                aria-expanded={isAccountOpen}
+                aria-label={user ? `Open account for ${user.displayName || 'user'}` : 'Sign In / Register'}
+                className={`icon-button account-toggle ${user ? 'is-logged-in' : ''}`}
+                type="button"
+                onClick={() => {
+                  setIsCartOpen(false)
+                  setIsMenuOpen(false)
+                  setIsAccountOpen(true)
+                }}
+              >
+                <Icon name="profile" />
+                {user && <span className="account-status-badge"></span>}
+              </button>
+
+              <button
                 key={`cart-toggle-${cartAnimationKey}`}
                 aria-controls="shopping-cart"
                 aria-expanded={isCartOpen}
@@ -485,6 +520,17 @@ function SiteHeader({ currentPage, isFooterVisible }) {
                   <Icon name="arrow" />
                 </a>
               ))}
+              <button
+                type="button"
+                className="mobile-account-link"
+                onClick={() => {
+                  setIsMenuOpen(false)
+                  setIsAccountOpen(true)
+                }}
+              >
+                <span>{user ? 'My Account' : 'Sign In / Register'}</span>
+                <Icon name="profile" />
+              </button>
             </nav>
             <p className="drawer-note">Open Monday-Friday in Wallington.</p>
           </aside>
@@ -492,6 +538,7 @@ function SiteHeader({ currentPage, isFooterVisible }) {
       )}
 
       <ShoppingCartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <AccountDrawer isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
     </>
   )
 }

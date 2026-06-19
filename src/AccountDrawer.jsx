@@ -1,0 +1,660 @@
+import { useEffect, useState } from 'react'
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth'
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { auth, db } from './firebase'
+import { Icon } from './SiteChrome'
+
+const states = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+]
+
+export default function AccountDrawer({ isOpen, onClose }) {
+  const [user, setUser] = useState(null)
+  const [authMode, setAuthMode] = useState('signin') // 'signin', 'signup', 'forgot'
+  const [activeTab, setActiveTab] = useState('profile') // 'profile', 'address', 'notifications'
+
+  // Auth Inputs
+  const [emailInput, setEmailInput] = useState('')
+  const [passwordInput, setPasswordInput] = useState('')
+  const [nameInput, setNameInput] = useState('')
+
+  // Profile Inputs
+  const [profileName, setProfileName] = useState('')
+  const [profilePhone, setProfilePhone] = useState('')
+
+  // Address Inputs
+  const [shippingStreet, setShippingStreet] = useState('')
+  const [shippingCity, setShippingCity] = useState('')
+  const [shippingState, setShippingState] = useState('')
+  const [shippingZip, setShippingZip] = useState('')
+  const [sameAsShipping, setSameAsShipping] = useState(true)
+  const [billingStreet, setBillingStreet] = useState('')
+  const [billingCity, setBillingCity] = useState('')
+  const [billingState, setBillingState] = useState('')
+  const [billingZip, setBillingZip] = useState('')
+
+  // Notifications Inputs
+  const [notifyBids, setNotifyBids] = useState(true)
+  const [notifyNewsletter, setNotifyNewsletter] = useState(false)
+  const [notifyReceipts, setNotifyReceipts] = useState(true)
+
+  // Status State
+  const [status, setStatus] = useState('idle') // 'loading', 'saving', 'success', 'error'
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if (!auth) return
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser)
+      if (currentUser) {
+        // Fetch user data from Firestore
+        await loadUserData(currentUser.uid, currentUser.email)
+      } else {
+        // Reset state
+        resetInputs()
+      }
+    })
+
+    return unsubscribe
+  }, [])
+
+  function resetInputs() {
+    setEmailInput('')
+    setPasswordInput('')
+    setNameInput('')
+    setProfileName('')
+    setProfilePhone('')
+    setShippingStreet('')
+    setShippingCity('')
+    setShippingState('')
+    setShippingZip('')
+    setSameAsShipping(true)
+    setBillingStreet('')
+    setBillingCity('')
+    setBillingState('')
+    setBillingZip('')
+    setNotifyBids(true)
+    setNotifyNewsletter(false)
+    setNotifyReceipts(true)
+    setMessage('')
+    setStatus('idle')
+  }
+
+  async function loadUserData(uid, email) {
+    setStatus('loading')
+    try {
+      const userDocRef = doc(db, 'users', uid)
+      const userDocSnap = await getDoc(userDocRef)
+
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data()
+        setProfileName(data.displayName || '')
+        setProfilePhone(data.phone || '')
+
+        if (data.shippingAddress) {
+          setShippingStreet(data.shippingAddress.street || '')
+          setShippingCity(data.shippingAddress.city || '')
+          setShippingState(data.shippingAddress.state || '')
+          setShippingZip(data.shippingAddress.zip || '')
+        }
+
+        setSameAsShipping(data.billingAddress?.sameAsShipping ?? true)
+        if (data.billingAddress) {
+          setBillingStreet(data.billingAddress.street || '')
+          setBillingCity(data.billingAddress.city || '')
+          setBillingState(data.billingAddress.state || '')
+          setBillingZip(data.billingAddress.zip || '')
+        }
+
+        if (data.notifications) {
+          setNotifyBids(data.notifications.biddingUpdates ?? true)
+          setNotifyNewsletter(data.notifications.newsletter ?? false)
+          setNotifyReceipts(data.notifications.purchaseReceipts ?? true)
+        }
+      } else {
+        // Document doesn't exist, initialize it
+        const initialProfile = {
+          displayName: auth.currentUser?.displayName || '',
+          email: email || '',
+          phone: '',
+          shippingAddress: { street: '', city: '', state: '', zip: '' },
+          billingAddress: { street: '', city: '', state: '', zip: '', sameAsShipping: true },
+          notifications: { biddingUpdates: true, newsletter: false, purchaseReceipts: true },
+          createdAt: new Date().toISOString()
+        }
+        await setDoc(userDocRef, initialProfile)
+        setProfileName(initialProfile.displayName)
+      }
+      setStatus('idle')
+    } catch (err) {
+      console.error('Error loading user data:', err)
+      setStatus('error')
+      setMessage('Failed to load profile details.')
+    }
+  }
+
+  // Handle Authentication
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault()
+    setStatus('saving')
+    setMessage('')
+
+    try {
+      if (authMode === 'signin') {
+        await signInWithEmailAndPassword(auth, emailInput.trim(), passwordInput)
+        setStatus('idle')
+      } else if (authMode === 'signup') {
+        if (!nameInput.trim()) {
+          throw new Error('Full Name is required.')
+        }
+        const userCredential = await createUserWithEmailAndPassword(auth, emailInput.trim(), passwordInput)
+        await updateProfile(userCredential.user, { displayName: nameInput.trim() })
+
+        // Initialize Firestore user doc
+        const userDocRef = doc(db, 'users', userCredential.user.uid)
+        await setDoc(userDocRef, {
+          displayName: nameInput.trim(),
+          email: emailInput.trim(),
+          phone: '',
+          shippingAddress: { street: '', city: '', state: '', zip: '' },
+          billingAddress: { street: '', city: '', state: '', zip: '', sameAsShipping: true },
+          notifications: { biddingUpdates: true, newsletter: false, purchaseReceipts: true },
+          createdAt: new Date().toISOString()
+        })
+
+        setProfileName(nameInput.trim())
+        setStatus('idle')
+      } else if (authMode === 'forgot') {
+        await sendPasswordResetEmail(auth, emailInput.trim())
+        setStatus('success')
+        setMessage('Password reset email sent! Check your inbox.')
+      }
+    } catch (err) {
+      console.error(err)
+      setStatus('error')
+      setMessage(err.message || 'Authentication operation failed.')
+    }
+  }
+
+  // Handle Profile Update
+  const handleProfileSave = async (e) => {
+    e.preventDefault()
+    if (!user) return
+
+    setStatus('saving')
+    setMessage('')
+
+    try {
+      const userDocRef = doc(db, 'users', user.uid)
+      const updates = {}
+
+      if (activeTab === 'profile') {
+        updates.displayName = profileName.trim()
+        updates.phone = profilePhone.trim()
+        // Also update auth display name
+        await updateProfile(user, { displayName: profileName.trim() })
+      } else if (activeTab === 'address') {
+        updates.shippingAddress = {
+          street: shippingStreet.trim(),
+          city: shippingCity.trim(),
+          state: shippingState,
+          zip: shippingZip.trim(),
+        }
+        updates.billingAddress = {
+          sameAsShipping,
+          street: sameAsShipping ? shippingStreet.trim() : billingStreet.trim(),
+          city: sameAsShipping ? shippingCity.trim() : billingCity.trim(),
+          state: sameAsShipping ? shippingState : billingState,
+          zip: sameAsShipping ? shippingZip.trim() : billingZip.trim(),
+        }
+      } else if (activeTab === 'notifications') {
+        updates.notifications = {
+          biddingUpdates: notifyBids,
+          newsletter: notifyNewsletter,
+          purchaseReceipts: notifyReceipts,
+        }
+      }
+
+      await updateDoc(userDocRef, updates)
+      setStatus('success')
+      setMessage('Profile updated successfully!')
+
+      // Fade message out after 3 seconds
+      setTimeout(() => {
+        setMessage((m) => (m === 'Profile updated successfully!' ? '' : m))
+        setStatus((s) => (s === 'success' ? 'idle' : s))
+      }, 3000)
+    } catch (err) {
+      console.error(err)
+      setStatus('error')
+      setMessage(err.message || 'Failed to save changes.')
+    }
+  }
+
+  const handleSignOut = async () => {
+    setStatus('saving')
+    try {
+      await signOut(auth)
+      resetInputs()
+      onClose()
+    } catch (err) {
+      console.error(err)
+      setStatus('error')
+      setMessage('Failed to sign out.')
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="shopping-cart-drawer is-open" id="user-account">
+      <button
+        aria-label="Close account panel"
+        className="drawer-backdrop"
+        type="button"
+        onClick={onClose}
+      />
+      <aside
+        aria-labelledby="account-panel-title"
+        aria-modal="true"
+        className="cart-panel user-account-panel"
+        role="dialog"
+      >
+        <div className="cart-panel-head">
+          <div>
+            <p className="cart-kicker">Account portal</p>
+            <h2 id="account-panel-title">
+              {user ? `Welcome, ${user.displayName || 'Collector'}` : 'Your Account'}
+            </h2>
+          </div>
+          <button
+            aria-label="Close account panel"
+            className="icon-button"
+            type="button"
+            onClick={onClose}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+
+        {/* NOT LOGGED IN CONTROLS */}
+        {!user && (
+          <div className="account-auth-container">
+            {authMode !== 'forgot' && (
+              <div className="account-auth-tabs">
+                <button
+                  className={`auth-tab ${authMode === 'signin' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setAuthMode('signin')
+                    setMessage('')
+                  }}
+                >
+                  Sign In
+                </button>
+                <button
+                  className={`auth-tab ${authMode === 'signup' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setAuthMode('signup')
+                    setMessage('')
+                  }}
+                >
+                  Create Account
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleAuthSubmit} className="account-form">
+              {authMode === 'forgot' && (
+                <div className="forgot-kicker">
+                  <h3>Reset your password</h3>
+                  <p>Enter your email address and we'll send you a link to reset your password.</p>
+                </div>
+              )}
+
+              {authMode === 'signup' && (
+                <label className="checkout-field">
+                  <span>Full Name</span>
+                  <input
+                    required
+                    type="text"
+                    placeholder="John Doe"
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                  />
+                </label>
+              )}
+
+              <label className="checkout-field">
+                <span>Email Address</span>
+                <input
+                  required
+                  type="email"
+                  placeholder="your@email.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                />
+              </label>
+
+              {authMode !== 'forgot' && (
+                <label className="checkout-field">
+                  <span>Password</span>
+                  <input
+                    required
+                    type="password"
+                    placeholder="••••••••"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                  />
+                </label>
+              )}
+
+              {authMode === 'signin' && (
+                <button
+                  type="button"
+                  className="forgot-password-link"
+                  onClick={() => {
+                    setAuthMode('forgot')
+                    setMessage('')
+                  }}
+                >
+                  Forgot your password?
+                </button>
+              )}
+
+              {message && (
+                <p className={`account-message is-${status}`} role="alert">
+                  {message}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="button primary account-submit-btn"
+                disabled={status === 'saving'}
+              >
+                {status === 'saving'
+                  ? 'Processing...'
+                  : authMode === 'signin'
+                    ? 'Sign In'
+                    : authMode === 'signup'
+                      ? 'Register Account'
+                      : 'Send Reset Link'}
+              </button>
+
+              {authMode === 'forgot' && (
+                <button
+                  type="button"
+                  className="button secondary account-cancel-btn"
+                  onClick={() => {
+                    setAuthMode('signin')
+                    setMessage('')
+                  }}
+                >
+                  Back to Sign In
+                </button>
+              )}
+            </form>
+          </div>
+        )}
+
+        {/* LOGGED IN CONTROLS */}
+        {user && (
+          <>
+            <div className="account-tabs-nav">
+              <button
+                className={`account-nav-tab ${activeTab === 'profile' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setActiveTab('profile')
+                  setMessage('')
+                }}
+              >
+                Profile
+              </button>
+              <button
+                className={`account-nav-tab ${activeTab === 'address' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setActiveTab('address')
+                  setMessage('')
+                }}
+              >
+                Addresses
+              </button>
+              <button
+                className={`account-nav-tab ${activeTab === 'notifications' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setActiveTab('notifications')
+                  setMessage('')
+                }}
+              >
+                Emails
+              </button>
+            </div>
+
+            <div className="account-tab-scroll">
+              <form onSubmit={handleProfileSave} className="account-form-fields">
+                {status === 'loading' && <p className="account-loading-text">Loading profile...</p>}
+
+                {activeTab === 'profile' && status !== 'loading' && (
+                  <div className="account-field-group">
+                    <label className="checkout-field">
+                      <span>Full Name</span>
+                      <input
+                        required
+                        type="text"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                      />
+                    </label>
+                    <label className="checkout-field">
+                      <span>Phone Number</span>
+                      <input
+                        type="tel"
+                        placeholder="(555) 555-5555"
+                        value={profilePhone}
+                        onChange={(e) => setProfilePhone(e.target.value)}
+                      />
+                    </label>
+                    <label className="checkout-field is-disabled">
+                      <span>Account Email (Read-Only)</span>
+                      <input
+                        disabled
+                        type="email"
+                        value={user.email || ''}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {activeTab === 'address' && status !== 'loading' && (
+                  <div className="account-field-group">
+                    <h3 className="section-subtitle">Shipping Address</h3>
+                    <label className="checkout-field">
+                      <span>Street Address</span>
+                      <input
+                        type="text"
+                        placeholder="123 Main St"
+                        value={shippingStreet}
+                        onChange={(e) => setShippingStreet(e.target.value)}
+                      />
+                    </label>
+                    <div className="address-row-grid">
+                      <label className="checkout-field">
+                        <span>City</span>
+                        <input
+                          type="text"
+                          placeholder="Wallington"
+                          value={shippingCity}
+                          onChange={(e) => setShippingCity(e.target.value)}
+                        />
+                      </label>
+                      <label className="checkout-field">
+                        <span>State</span>
+                        <select
+                          value={shippingState}
+                          onChange={(e) => setShippingState(e.target.value)}
+                        >
+                          <option value="">Select State</option>
+                          {states.map(st => (
+                            <option key={st} value={st}>{st}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="checkout-field">
+                        <span>ZIP Code</span>
+                        <input
+                          type="text"
+                          placeholder="07057"
+                          value={shippingZip}
+                          onChange={(e) => setShippingZip(e.target.value)}
+                        />
+                      </label>
+                    </div>
+
+                    <label className="checkbox-field-label">
+                      <input
+                        type="checkbox"
+                        checked={sameAsShipping}
+                        onChange={(e) => setSameAsShipping(e.target.checked)}
+                      />
+                      <span>Billing address is same as shipping</span>
+                    </label>
+
+                    {!sameAsShipping && (
+                      <div className="billing-address-section">
+                        <h3 className="section-subtitle">Billing Address</h3>
+                        <label className="checkout-field">
+                          <span>Street Address</span>
+                          <input
+                            type="text"
+                            placeholder="456 Oak Ave"
+                            value={billingStreet}
+                            onChange={(e) => setBillingStreet(e.target.value)}
+                          />
+                        </label>
+                        <div className="address-row-grid">
+                          <label className="checkout-field">
+                            <span>City</span>
+                            <input
+                              type="text"
+                              placeholder="Clifton"
+                              value={billingCity}
+                              onChange={(e) => setBillingCity(e.target.value)}
+                            />
+                          </label>
+                          <label className="checkout-field">
+                            <span>State</span>
+                            <select
+                              value={billingState}
+                              onChange={(e) => setBillingState(e.target.value)}
+                            >
+                              <option value="">Select State</option>
+                              {states.map(st => (
+                                <option key={st} value={st}>{st}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="checkout-field">
+                            <span>ZIP Code</span>
+                            <input
+                              type="text"
+                              placeholder="07011"
+                              value={billingZip}
+                              onChange={(e) => setBillingZip(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'notifications' && status !== 'loading' && (
+                  <div className="account-field-group">
+                    <h3 className="section-subtitle">Email Settings</h3>
+                    <p className="field-explanation">
+                      Receive notices about actions you take on the site.
+                    </p>
+                    
+                    <label className="checkbox-field-label">
+                      <input
+                        type="checkbox"
+                        checked={notifyBids}
+                        onChange={(e) => setNotifyBids(e.target.checked)}
+                      />
+                      <div>
+                        <strong>Bidding Notifications</strong>
+                        <span>Receive emails when you place a bid, get outbid, or win an auction.</span>
+                      </div>
+                    </label>
+
+                    <label className="checkbox-field-label">
+                      <input
+                        type="checkbox"
+                        checked={notifyReceipts}
+                        onChange={(e) => setNotifyReceipts(e.target.checked)}
+                      />
+                      <div>
+                        <strong>Purchase Receipts</strong>
+                        <span>Get invoice copies and order confirmations sent automatically.</span>
+                      </div>
+                    </label>
+
+                    <label className="checkbox-field-label">
+                      <input
+                        type="checkbox"
+                        checked={notifyNewsletter}
+                        onChange={(e) => setNotifyNewsletter(e.target.checked)}
+                      />
+                      <div>
+                        <strong>Store Updates & Events</strong>
+                        <span>Get notified about pop-up sales, drops, and community events.</span>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {message && (
+                  <p className={`account-message is-${status}`} role="alert">
+                    {message}
+                  </p>
+                )}
+
+                {status !== 'loading' && (
+                  <button
+                    type="submit"
+                    className="button primary save-settings-btn"
+                    disabled={status === 'saving'}
+                  >
+                    {status === 'saving' ? 'Saving Changes...' : 'Save Settings'}
+                  </button>
+                )}
+              </form>
+            </div>
+
+            <div className="account-drawer-footer">
+              <button
+                type="button"
+                className="button secondary sign-out-btn"
+                onClick={handleSignOut}
+              >
+                Sign Out
+              </button>
+            </div>
+          </>
+        )}
+      </aside>
+    </div>
+  )
+}

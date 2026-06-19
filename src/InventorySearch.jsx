@@ -402,47 +402,55 @@ function InventorySearch() {
 
               {visibleProducts.length > 0 ? (
                 <div className="inventory-grid">
-                  {visibleProducts.map((product) => (
-                    <article
-                      className="inventory-product-card"
-                      key={product.id}
-                    >
-                      <button
-                        aria-label={`View details for ${product.name}`}
-                        className="inventory-product-view"
-                        type="button"
-                        onClick={() => setSelectedProduct(product)}
+                  {visibleProducts.map((product) => {
+                    const isAuction = product.saleMode === 'auction'
+                    const displayPrice = getProductDisplayPrice(product)
+                    return (
+                      <article
+                        className="inventory-product-card"
+                        key={product.id}
                       >
-                        <div className="inventory-product-media">
-                          <img src={product.image} alt={product.name} loading="lazy" />
-                          {product.imageCount > 1 && (
-                            <span className="inventory-product-image-count">
-                              {product.imageCount} photos
-                            </span>
+                        <button
+                          aria-label={`View details for ${product.name}`}
+                          className="inventory-product-view"
+                          type="button"
+                          onClick={() => setSelectedProduct(product)}
+                        >
+                          <div className="inventory-product-media">
+                            <img src={product.image} alt={product.name} loading="lazy" />
+                            {product.imageCount > 1 && (
+                              <span className="inventory-product-image-count">
+                                {product.imageCount} photos
+                              </span>
+                            )}
+                          </div>
+                          <div className="inventory-product-content">
+                            <div>
+                              <span className="inventory-product-category">
+                                {product.categoryName}
+                              </span>
+                              <h3>{product.name}</h3>
+                              <p>{product.description}</p>
+                            </div>
+                            <div className="inventory-product-meta">
+                              <span>{isAuction ? 'Bidding open' : product.categoryName}</span>
+                              <strong>{priceFormatter.format(displayPrice)}</strong>
+                            </div>
+                          </div>
+                        </button>
+                        <div className="inventory-product-actions">
+                          {isAuction ? (
+                            <QuickBid currentPrice={displayPrice} product={product} />
+                          ) : (
+                            <AddToCartButton
+                              className="button primary inventory-add-cart"
+                              product={product}
+                            />
                           )}
                         </div>
-                        <div className="inventory-product-content">
-                          <div>
-                            <span className="inventory-product-category">
-                              {product.categoryName}
-                            </span>
-                            <h3>{product.name}</h3>
-                            <p>{product.description}</p>
-                          </div>
-                          <div className="inventory-product-meta">
-                            <span>{product.categoryName}</span>
-                            <strong>{priceFormatter.format(product.price)}</strong>
-                          </div>
-                        </div>
-                      </button>
-                      <div className="inventory-product-actions">
-                        <AddToCartButton
-                          className="button primary inventory-add-cart"
-                          product={product}
-                        />
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="inventory-empty-state">

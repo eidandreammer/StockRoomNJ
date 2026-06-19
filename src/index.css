@@ -86,3 +86,145 @@ img {
 #root {
   min-height: 100svh;
 }
+
+/* QuickBid button color-coding */
+.quick-bid button.bid-low {
+  background-color: var(--color-nav-coin-grey);
+  border-color: var(--color-nav-coin-grey);
+  color: #ffffff;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 100ms ease;
+}
+
+.quick-bid button.bid-low:hover:not(:disabled),
+.quick-bid button.bid-low:focus-visible:not(:disabled) {
+  background-color: #787b7f;
+  border-color: #787b7f;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.quick-bid button.bid-low:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.quick-bid button.bid-high {
+  background-color: var(--color-nav-royal-blue);
+  border-color: var(--color-nav-royal-blue);
+  color: #ffffff;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 100ms ease;
+}
+
+.quick-bid button.bid-high:hover:not(:disabled),
+.quick-bid button.bid-high:focus-visible:not(:disabled) {
+  background-color: #001744;
+  border-color: #001744;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.quick-bid button.bid-high:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Bidding status styling */
+.quick-bid-status-notice {
+  margin: 4px 0 8px;
+}
+
+.quick-bid-lock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(240, 68, 56, 0.05);
+  border: 1px solid rgba(240, 68, 56, 0.15);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #f04438;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  animation: slideDown 200ms ease;
+}
+
+.quick-bid-lock.is-unlocked {
+  background-color: rgba(18, 183, 106, 0.06);
+  border-color: rgba(18, 183, 106, 0.2);
+  color: #12b76a;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #f04438;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(240, 68, 56, 0.7);
+  animation: pulse 1.6s infinite;
+}
+
+.unlock-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #12b76a;
+  border-radius: 50%;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(240, 68, 56, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(240, 68, 56, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(240, 68, 56, 0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Email field validation feedback */
+.quick-bid-email.needs-attention input {
+  border-color: rgba(240, 68, 56, 0.4) !important;
+  box-shadow: 0 0 0 2px rgba(240, 68, 56, 0.05);
+  animation: borderGlow 2s infinite ease-in-out;
+}
+
+.quick-bid-email.needs-attention input:focus {
+  border-color: #f04438 !important;
+  box-shadow: 0 0 0 3px rgba(240, 68, 56, 0.15) !important;
+  animation: none;
+}
+
+.quick-bid-email.is-valid input {
+  border-color: rgba(18, 183, 106, 0.4) !important;
+}
+
+.quick-bid-email.is-valid input:focus {
+  border-color: #12b76a !important;
+  box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.15) !important;
+}
+
+@keyframes borderGlow {
+  0%, 100% {
+    border-color: rgba(240, 68, 56, 0.35);
+    box-shadow: 0 0 0 2px rgba(240, 68, 56, 0.05);
+  }
+  50% {
+    border-color: rgba(240, 68, 56, 0.65);
+    box-shadow: 0 0 0 4px rgba(240, 68, 56, 0.12);
+  }
+}
+
+

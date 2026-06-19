@@ -3108,3 +3108,324 @@ address {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* User Account Drawer & Portal Styling */
+.user-account-panel {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.account-auth-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 15px;
+}
+
+.account-auth-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--color-border-soft);
+  gap: 16px;
+}
+
+.auth-tab {
+  background: none;
+  border: none;
+  padding: 10px 4px;
+  font-weight: 700;
+  color: var(--color-muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease;
+  font-size: 0.95rem;
+}
+
+.auth-tab:hover {
+  color: var(--color-text);
+}
+
+.auth-tab.is-active {
+  color: var(--color-accent);
+}
+
+.auth-tab.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-accent);
+  border-radius: 2px;
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.forgot-password-link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  margin-top: -4px;
+  transition: opacity 0.15s;
+}
+
+.forgot-password-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.forgot-kicker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.forgot-kicker h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.forgot-kicker p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--color-muted);
+}
+
+.account-submit-btn,
+.save-settings-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  font-weight: 750;
+  font-size: 0.94rem;
+}
+
+.account-cancel-btn {
+  width: 100%;
+  padding: 10px;
+  font-weight: 700;
+}
+
+/* Logged In Tabs */
+.account-tabs-nav {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 16px;
+}
+
+.account-nav-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 10px 4px;
+  font-size: 0.88rem;
+  font-weight: 750;
+  color: var(--color-muted);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.account-nav-tab:hover {
+  color: var(--color-text);
+}
+
+.account-nav-tab.is-active {
+  color: var(--color-nav-royal-blue);
+  border-bottom-color: var(--color-nav-royal-blue);
+}
+
+.account-tab-scroll {
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.account-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+
+.account-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  color: var(--color-text);
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-border-soft);
+  padding-bottom: 6px;
+}
+
+.address-row-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .address-row-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.checkbox-field-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 0;
+  color: var(--color-text);
+}
+
+.checkbox-field-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: var(--color-accent);
+}
+
+.checkbox-field-label div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.checkbox-field-label div strong {
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.checkbox-field-label div span {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.field-explanation {
+  margin: -8px 0 4px;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.billing-address-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.checkout-field.is-disabled input {
+  background-color: var(--color-border-soft);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+/* Footer Section */
+.account-drawer-footer {
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+  margin-top: auto;
+}
+
+.sign-out-btn {
+  width: 100%;
+  padding: 10px;
+  font-weight: 700;
+}
+
+/* Status Notifications */
+.account-message {
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin: 8px 0 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.account-message.is-error {
+  background-color: rgba(240, 68, 56, 0.06);
+  border: 1px solid rgba(240, 68, 56, 0.2);
+  color: #f04438;
+}
+
+.account-message.is-success {
+  background-color: rgba(18, 183, 106, 0.06);
+  border: 1px solid rgba(18, 183, 106, 0.2);
+  color: #12b76a;
+}
+
+.account-loading-text {
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  padding: 24px 0;
+}
+
+/* Header Badge & Profile button */
+.account-toggle {
+  position: relative;
+}
+
+.account-status-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background-color: #12b76a;
+  border: 2px solid var(--color-bg);
+  border-radius: 50%;
+}
+
+/* Mobile Account Button */
+.mobile-account-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 14px 18px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  border-top: 1px solid var(--color-border-soft);
+  margin-top: 10px;
+}
+
+.mobile-account-link:hover,
+.mobile-account-link:focus-visible {
+  background-color: var(--color-border-soft);
+}
+
+.mobile-account-link svg {
+  width: 20px;
+  height: 20px;
+  color: var(--color-muted);
+}
+

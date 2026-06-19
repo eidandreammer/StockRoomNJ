@@ -6,8 +6,17 @@ import Stripe from 'stripe'
 admin.initializeApp()
 
 const db = admin.firestore()
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || ''
-const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null
+
+let stripeInstance = null
+function getStripe() {
+  if (stripeInstance) return stripeInstance
+  const key = process.env.STRIPE_SECRET_KEY || ''
+  if (key) {
+    stripeInstance = new Stripe(key)
+  }
+  return stripeInstance
+}
+
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean)
 const documentTypes = ['TOS', 'PRIVACY_POLICY']
 
@@ -366,6 +375,7 @@ async function handlePlaceBid(request, response) {
 }
 
 async function createCheckoutSession({ agreementIds, buyerEmail, items, metadata }) {
+  const stripe = getStripe()
   if (!stripe) {
     return { id: '', url: '', warning: 'Stripe is not configured.' }
   }
@@ -581,7 +591,7 @@ const routes = {
   'POST /api/admin/bids/approve': handleApproveBid,
 }
 
-export const api = onRequest(async (request, response) => {
+export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY'] }, async (request, response) => {
   applyCors(request, response)
 
   if (request.method === 'OPTIONS') {

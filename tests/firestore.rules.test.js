@@ -174,3 +174,30 @@ describe('Firestore legal and commerce rules', () => {
     await assertFails(getDoc(doc(otherDb, 'orders', 'order-1')))
   })
 })
+
+describe('Firestore user profile rules', () => {
+  it('allows users to read and write their own user profile document', async () => {
+    const userDb = testEnv.authenticatedContext('user-123').firestore()
+    const otherDb = testEnv.authenticatedContext('other-user').firestore()
+    const guestDb = testEnv.unauthenticatedContext().firestore()
+
+    // 1. Authenticated owner can write
+    await assertSucceeds(setDoc(doc(userDb, 'users', 'user-123'), {
+      displayName: 'Alice',
+      email: 'alice@example.com',
+      notifications: { biddingUpdates: true }
+    }))
+
+    // 2. Authenticated owner can read
+    await assertSucceeds(getDoc(doc(userDb, 'users', 'user-123')))
+
+    // 3. Unauthenticated visitor cannot read or write
+    await assertFails(getDoc(doc(guestDb, 'users', 'user-123')))
+    await assertFails(setDoc(doc(guestDb, 'users', 'user-123'), { displayName: 'Guest' }))
+
+    // 4. Other authenticated user cannot read or write
+    await assertFails(getDoc(doc(otherDb, 'users', 'user-123')))
+    await assertFails(setDoc(doc(otherDb, 'users', 'user-123'), { displayName: 'Bob' }))
+  })
+})
+

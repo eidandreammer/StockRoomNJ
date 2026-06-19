@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { onAuthStateChanged } from 'firebase/auth'
 import { apiRequest } from './api'
 import { calculateIncrement } from './bidMath'
 import { auth } from './firebase'
@@ -30,6 +31,16 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
   const [email, setEmail] = useState(auth?.currentUser?.email ?? '')
   const [status, setStatus] = useState('idle')
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if (!auth) return
+
+    return onAuthStateChanged(auth, (user) => {
+      if (user?.email) {
+        setEmail(user.email)
+      }
+    })
+  }, [])
   const increment = useMemo(() => calculateIncrement(currentPrice), [currentPrice])
   const minimumBid = useMemo(() => bidAmount(currentPrice, increment, 1), [currentPrice, increment])
   const aggressiveBid = useMemo(() => recommendedBid(currentPrice, increment), [currentPrice, increment])
@@ -77,19 +88,43 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
         <strong>{priceFormatter.format(Number(currentPrice) || 0)}</strong>
       </div>
       <p>Recommended bid: {priceFormatter.format(aggressiveBid)}</p>
+      <div className="quick-bid-status-notice">
+        {!hasEmail ? (
+          <div className="quick-bid-lock">
+            <span className="pulse-dot"></span>
+            <span>Enter email below to unlock bidding</span>
+          </div>
+        ) : (
+          <div className="quick-bid-lock is-unlocked">
+            <span className="unlock-dot"></span>
+            <span>Bidding unlocked</span>
+          </div>
+        )}
+      </div>
       <div className="quick-bid-actions">
-        <button disabled={status === 'saving' || !hasEmail} type="button" onClick={() => placeBid(minimumBid)}>
+        <button
+          className="bid-low"
+          disabled={status === 'saving' || !hasEmail}
+          type="button"
+          onClick={() => placeBid(minimumBid)}
+        >
           {priceFormatter.format(minimumBid)}
         </button>
-        <button disabled={status === 'saving' || !hasEmail} type="button" onClick={() => placeBid(aggressiveBid)}>
+        <button
+          className="bid-high"
+          disabled={status === 'saving' || !hasEmail}
+          type="button"
+          onClick={() => placeBid(aggressiveBid)}
+        >
           {priceFormatter.format(aggressiveBid)}
         </button>
       </div>
-      <label className="quick-bid-email">
+      <label className={`quick-bid-email${!hasEmail ? ' needs-attention' : ' is-valid'}`}>
         <span>Email for approval notice</span>
         <input
           required
           autoComplete="email"
+          placeholder="your@email.com"
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}

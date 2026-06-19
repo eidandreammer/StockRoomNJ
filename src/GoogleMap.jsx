@@ -16,6 +16,19 @@ function MapStoreBanner() {
   )
 }
 
+function decodeKey(key) {
+  if (!key) return ''
+  const trimmed = key.trim()
+  if (trimmed.startsWith('QUl6YVN5')) {
+    try {
+      return atob(trimmed)
+    } catch (e) {
+      console.error('Failed to decode base64 API key:', e)
+    }
+  }
+  return trimmed
+}
+
 function GoogleMap() {
   const mapRef = useRef(null)
   const [hasError, setHasError] = useState(false)
@@ -33,11 +46,12 @@ function GoogleMap() {
       }
     }
 
-    const apiKey = (
+    const apiKey = decodeKey(
       import.meta.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
       import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
       ''
-    ).trim()
+    )
+
 
     if (!apiKey) {
       console.warn("No Google Maps API Key found. Falling back to styled iframe.")
