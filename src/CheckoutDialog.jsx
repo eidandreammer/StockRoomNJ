@@ -188,8 +188,14 @@ function CheckoutDialog({ items, onClose, subtotal }) {
 
         <fieldset className="checkout-legal">
           <legend>Legal agreements</legend>
-          {requiredDocuments.length === 0 ? (
-            <p className="checkout-note">Your account has accepted the active legal documents.</p>
+          {activeDocuments.length === 0 ? (
+            <p className="checkout-note">No legal agreements are currently active.</p>
+          ) : requiredDocuments.length === 0 ? (
+            <p className="checkout-note">
+              {buyer.checkoutMode === 'account'
+                ? 'Your account has accepted the active legal documents.'
+                : 'All active legal documents have been accepted.'}
+            </p>
           ) : (
             requiredDocuments.map((document) => (
               <label key={document.id}>

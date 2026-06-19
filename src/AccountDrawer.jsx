@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
   createUserWithEmailAndPassword,
+  getMultiFactorResolver,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  TotpMultiFactorGenerator,
   updateProfile,
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
@@ -23,6 +25,8 @@ export default function AccountDrawer({ isOpen, onClose }) {
   const [user, setUser] = useState(null)
   const [authMode, setAuthMode] = useState('signin') // 'signin', 'signup', 'forgot'
   const [activeTab, setActiveTab] = useState('profile') // 'profile', 'address', 'notifications'
+  const [mfaResolver, setMfaResolver] = useState(null)
+  const [mfaCode, setMfaCode] = useState('')
 
   // Auth Inputs
   const [emailInput, setEmailInput] = useState('')
@@ -74,6 +78,8 @@ export default function AccountDrawer({ isOpen, onClose }) {
     setEmailInput('')
     setPasswordInput('')
     setNameInput('')
+    setMfaResolver(null)
+    setMfaCode('')
     setProfileName('')
     setProfilePhone('')
     setShippingStreet('')
@@ -183,8 +189,64 @@ export default function AccountDrawer({ isOpen, onClose }) {
       }
     } catch (err) {
       console.error(err)
+      if (err?.code === 'auth/multi-factor-auth-required') {
+        const resolver = getMultiFactorResolver(auth, err)
+        const totpHint = resolver.hints.find(
+          (hint) => hint.factorId === TotpMultiFactorGenerator.FACTOR_ID
+        )
+        if (!totpHint) {
+          setStatus('error')
+          setMessage('Authenticator app verification is required but not configured.')
+          return
+        }
+        setMfaResolver(resolver)
+        setMfaCode('')
+        setStatus('idle')
+        setMessage('')
+        return
+      }
       setStatus('error')
       setMessage(err.message || 'Authentication operation failed.')
+    }
+  }
+
+  const handleMfaSubmit = async (e) => {
+    e.preventDefault()
+    const verificationCode = mfaCode.trim()
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setStatus('error')
+      setMessage('Enter the 6-digit code from your authenticator app.')
+      return
+    }
+
+    const totpHint = mfaResolver?.hints?.find(
+      (hint) => hint.factorId === TotpMultiFactorGenerator.FACTOR_ID
+    )
+
+    if (!totpHint) {
+      setStatus('error')
+      setMessage('Authenticator app verification is not set up properly.')
+      return
+    }
+
+    setStatus('saving')
+    setMessage('')
+
+    try {
+      const assertion = TotpMultiFactorGenerator.assertionForSignIn(totpHint.uid, verificationCode)
+      await mfaResolver.resolveSignIn(assertion)
+      setMfaResolver(null)
+      setMfaCode('')
+      setStatus('idle')
+    } catch (totpError) {
+      console.error(totpError)
+      setStatus('error')
+      if (totpError?.code === 'auth/invalid-verification-code') {
+        setMessage('That code is invalid or expired. Try the current code from your authenticator app.')
+      } else {
+        setMessage(totpError.message || 'Verification failed.')
+      }
     }
   }
 
@@ -292,120 +354,172 @@ export default function AccountDrawer({ isOpen, onClose }) {
         {/* NOT LOGGED IN CONTROLS */}
         {!user && (
           <div className="account-auth-container">
-            {authMode !== 'forgot' && (
-              <div className="account-auth-tabs">
-                <button
-                  className={`auth-tab ${authMode === 'signin' ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setAuthMode('signin')
-                    setMessage('')
-                  }}
-                >
-                  Sign In
-                </button>
-                <button
-                  className={`auth-tab ${authMode === 'signup' ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setAuthMode('signup')
-                    setMessage('')
-                  }}
-                >
-                  Create Account
-                </button>
-              </div>
-            )}
-
-            <form onSubmit={handleAuthSubmit} className="account-form">
-              {authMode === 'forgot' && (
+            {mfaResolver ? (
+              <form onSubmit={handleMfaSubmit} className="account-form">
                 <div className="forgot-kicker">
-                  <h3>Reset your password</h3>
-                  <p>Enter your email address and we'll send you a link to reset your password.</p>
+                  <h3>Two-step verification</h3>
+                  <p>Enter the current 6-digit code from your authenticator app.</p>
                 </div>
-              )}
 
-              {authMode === 'signup' && (
                 <label className="checkout-field">
-                  <span>Full Name</span>
+                  <span>6-digit code</span>
                   <input
                     required
-                    type="text"
-                    placeholder="John Doe"
-                    value={nameInput}
-                    onChange={(e) => setNameInput(e.target.value)}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    maxLength="6"
+                    pattern="[0-9]{6}"
+                    placeholder="123456"
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   />
                 </label>
-              )}
 
-              <label className="checkout-field">
-                <span>Email Address</span>
-                <input
-                  required
-                  type="email"
-                  placeholder="your@email.com"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                />
-              </label>
+                {message && (
+                  <p className={`account-message is-${status}`} role="alert">
+                    {message}
+                  </p>
+                )}
 
-              {authMode !== 'forgot' && (
-                <label className="checkout-field">
-                  <span>Password</span>
-                  <input
-                    required
-                    type="password"
-                    placeholder="••••••••"
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                  />
-                </label>
-              )}
-
-              {authMode === 'signin' && (
                 <button
-                  type="button"
-                  className="forgot-password-link"
-                  onClick={() => {
-                    setAuthMode('forgot')
-                    setMessage('')
-                  }}
+                  type="submit"
+                  className="button primary account-submit-btn"
+                  disabled={status === 'saving'}
                 >
-                  Forgot your password?
+                  {status === 'saving' ? 'Verifying...' : 'Verify'}
                 </button>
-              )}
 
-              {message && (
-                <p className={`account-message is-${status}`} role="alert">
-                  {message}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                className="button primary account-submit-btn"
-                disabled={status === 'saving'}
-              >
-                {status === 'saving'
-                  ? 'Processing...'
-                  : authMode === 'signin'
-                    ? 'Sign In'
-                    : authMode === 'signup'
-                      ? 'Register Account'
-                      : 'Send Reset Link'}
-              </button>
-
-              {authMode === 'forgot' && (
                 <button
                   type="button"
                   className="button secondary account-cancel-btn"
                   onClick={() => {
-                    setAuthMode('signin')
+                    setMfaResolver(null)
+                    setMfaCode('')
                     setMessage('')
+                    setStatus('idle')
                   }}
                 >
-                  Back to Sign In
+                  Cancel
                 </button>
-              )}
-            </form>
+              </form>
+            ) : (
+              <>
+                {authMode !== 'forgot' && (
+                  <div className="account-auth-tabs">
+                    <button
+                      className={`auth-tab ${authMode === 'signin' ? 'is-active' : ''}`}
+                      onClick={() => {
+                        setAuthMode('signin')
+                        setMessage('')
+                      }}
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      className={`auth-tab ${authMode === 'signup' ? 'is-active' : ''}`}
+                      onClick={() => {
+                        setAuthMode('signup')
+                        setMessage('')
+                      }}
+                    >
+                      Create Account
+                    </button>
+                  </div>
+                )}
+
+                <form onSubmit={handleAuthSubmit} className="account-form">
+                  {authMode === 'forgot' && (
+                    <div className="forgot-kicker">
+                      <h3>Reset your password</h3>
+                      <p>Enter your email address and we'll send you a link to reset your password.</p>
+                    </div>
+                  )}
+
+                  {authMode === 'signup' && (
+                    <label className="checkout-field">
+                      <span>Full Name</span>
+                      <input
+                        required
+                        type="text"
+                        placeholder="John Doe"
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                      />
+                    </label>
+                  )}
+
+                  <label className="checkout-field">
+                    <span>Email Address</span>
+                    <input
+                      required
+                      type="email"
+                      placeholder="your@email.com"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                    />
+                  </label>
+
+                  {authMode !== 'forgot' && (
+                    <label className="checkout-field">
+                      <span>Password</span>
+                      <input
+                        required
+                        type="password"
+                        placeholder="••••••••"
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                      />
+                    </label>
+                  )}
+
+                  {authMode === 'signin' && (
+                    <button
+                      type="button"
+                      className="forgot-password-link"
+                      onClick={() => {
+                        setAuthMode('forgot')
+                        setMessage('')
+                      }}
+                    >
+                      Forgot your password?
+                    </button>
+                  )}
+
+                  {message && (
+                    <p className={`account-message is-${status}`} role="alert">
+                      {message}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="button primary account-submit-btn"
+                    disabled={status === 'saving'}
+                  >
+                    {status === 'saving'
+                      ? 'Processing...'
+                      : authMode === 'signin'
+                        ? 'Sign In'
+                        : authMode === 'signup'
+                          ? 'Register Account'
+                          : 'Send Reset Link'}
+                  </button>
+
+                  {authMode === 'forgot' && (
+                    <button
+                      type="button"
+                      className="button secondary account-cancel-btn"
+                      onClick={() => {
+                        setAuthMode('signin')
+                        setMessage('')
+                      }}
+                    >
+                      Back to Sign In
+                    </button>
+                  )}
+                </form>
+              </>
+            )}
           </div>
         )}
 
