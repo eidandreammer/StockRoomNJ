@@ -101,7 +101,7 @@ export function Icon({ name, className = '' }) {
 }
 
 function ShoppingCartDrawer({ isOpen, onClose }) {
-  const { items, removeItem, subtotal, totalItems } = useShoppingCart()
+  const { clearCart, items, removeItem, subtotal, totalItems } = useShoppingCart()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const formattedSubtotal = priceFormatter.format(subtotal)
 
@@ -181,13 +181,23 @@ function ShoppingCartDrawer({ isOpen, onClose }) {
               </span>
               <strong>{formattedSubtotal}</strong>
             </div>
-            <button
-              className="button primary cart-checkout-button"
-              type="button"
-              onClick={() => setIsCheckoutOpen(true)}
-            >
-              Checkout
-            </button>
+            <div className="cart-actions">
+              <button
+                className="button primary cart-checkout-button"
+                type="button"
+                onClick={() => setIsCheckoutOpen(true)}
+              >
+                Checkout
+              </button>
+              <button
+                aria-label="Clear all items from shopping cart"
+                className="cart-clear-button"
+                type="button"
+                onClick={clearCart}
+              >
+                Clear cart
+              </button>
+            </div>
           </>
         ) : (
           <div className="cart-empty-state">
@@ -540,7 +550,7 @@ function SiteFooter({ currentPage, footerRef }) {
         <div className="container footer-bottom">
           <p>&copy; {new Date().getFullYear()} The Stock Room. Wallington, NJ.</p>
           <div className="footer-social" aria-label="Social media">
-            <a aria-label="Admin dashboard" href="./admin.html">
+            <a aria-label="Admin dashboard" href="./admin">
               <Icon name="admin" />
             </a>
             {socialLinks.map((social) => (

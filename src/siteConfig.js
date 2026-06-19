@@ -2,8 +2,8 @@ const baseUrl = import.meta.env.BASE_URL
 
 export const brandLogo = `${baseUrl}segundo%20logo%20the%20stock%20room.png`
 export const footerLogo = `${baseUrl}circle%20logo.png`
-export const homeUrl = `${baseUrl}index.html`
-export const productGalleryUrl = `${baseUrl}gallery.html`
+export const homeUrl = baseUrl
+export const productGalleryUrl = `${baseUrl}shop`
 
 export const storeAddress = '66 Union Blvd, Wallington, NJ 07057'
 export const storeEmail = 'thestockroomnj@gmail.com'

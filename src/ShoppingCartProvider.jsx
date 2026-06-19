@@ -26,17 +26,27 @@ function readStoredCart() {
       return []
     }
 
-    return storedCart
-      .filter((item) => item && item.id)
-      .map((item) => ({
+    const uniqueItems = []
+    const seenItemIds = new Set()
+
+    for (const item of storedCart) {
+      if (!item || !item.id || seenItemIds.has(item.id)) {
+        continue
+      }
+
+      seenItemIds.add(item.id)
+      uniqueItems.push({
         categoryName: item.categoryName ?? '',
         id: item.id,
         image: item.image ?? '',
         itemId: item.itemId ?? item.id,
         name: item.name ?? 'Untitled item',
         price: Number(item.price) || 0,
-        quantity: Math.max(1, Number(item.quantity) || 1),
-      }))
+        quantity: 1,
+      })
+    }
+
+    return uniqueItems
   } catch {
     return []
   }
@@ -58,36 +68,40 @@ export function ShoppingCartProvider({ children }) {
     const addItem = (product) => {
       const nextItem = normalizeCartItem(product)
 
+      if (items.some((item) => item.id === nextItem.id)) {
+        return
+      }
+
       setCartAnimationKey((currentKey) => currentKey + 1)
       setItems((currentItems) => {
         const existingItem = currentItems.find((item) => item.id === nextItem.id)
 
-        if (!existingItem) {
-          return [...currentItems, { ...nextItem, quantity: 1 }]
+        if (existingItem) {
+          return currentItems
         }
 
-        return currentItems.map((item) =>
-          item.id === nextItem.id
-            ? {
-                ...item,
-                ...nextItem,
-                quantity: item.quantity + 1,
-              }
-            : item,
-        )
+        return [...currentItems, { ...nextItem, quantity: 1 }]
       })
     }
+
+    const hasItem = (itemId) => items.some((item) => item.id === itemId)
 
     const removeItem = (itemId) => {
       setItems((currentItems) => currentItems.filter((item) => item.id !== itemId))
     }
 
-    const totalItems = items.reduce((total, item) => total + item.quantity, 0)
-    const subtotal = items.reduce((total, item) => total + item.price * item.quantity, 0)
+    const clearCart = () => {
+      setItems([])
+    }
+
+    const totalItems = items.length
+    const subtotal = items.reduce((total, item) => total + item.price, 0)
 
     return {
       addItem,
       cartAnimationKey,
+      clearCart,
+      hasItem,
       items,
       removeItem,
       subtotal,

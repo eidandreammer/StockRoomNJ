@@ -371,7 +371,7 @@ async function createCheckoutSession({ agreementIds, buyerEmail, items, metadata
     .filter(Boolean)
 
   const sessionPayload = {
-    cancel_url: process.env.STRIPE_CANCEL_URL || 'https://stockroomnj.com/gallery.html',
+    cancel_url: process.env.STRIPE_CANCEL_URL || 'https://stockroomnj.com/shop',
     customer_email: buyerEmail,
     line_items: items,
     metadata: {
@@ -379,7 +379,7 @@ async function createCheckoutSession({ agreementIds, buyerEmail, items, metadata
       ...metadata,
     },
     mode: 'payment',
-    success_url: process.env.STRIPE_SUCCESS_URL || 'https://stockroomnj.com/gallery.html?checkout=success',
+    success_url: process.env.STRIPE_SUCCESS_URL || 'https://stockroomnj.com/shop?checkout=success',
   }
 
   if (paymentMethodTypes.length > 0) {
@@ -427,10 +427,22 @@ async function handleCreateCheckoutSession(request, response) {
   }
 
   const lineItems = []
+  const checkoutProductIds = new Set()
 
   for (const item of cartItems) {
     const productId = String(item.product_id || '').trim()
-    const quantity = Math.max(1, Number(item.quantity) || 1)
+
+    if (!productId) {
+      sendJson(response, 400, { error: 'Each checkout item requires a product_id.' })
+      return
+    }
+
+    if (checkoutProductIds.has(productId)) {
+      sendJson(response, 400, { error: `Product ${productId} can only be checked out once.` })
+      return
+    }
+
+    checkoutProductIds.add(productId)
     const productSnapshot = await db.collection('products').doc(productId).get()
 
     if (!productSnapshot.exists) {
@@ -453,7 +465,7 @@ async function handleCreateCheckoutSession(request, response) {
         },
         unit_amount: cents(product.price),
       },
-      quantity,
+      quantity: 1,
     })
   }
 

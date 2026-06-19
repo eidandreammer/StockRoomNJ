@@ -1,7 +1,7 @@
 # StockRoom NJ
 
 React and Vite storefront for The Stock Room NJ. The public site includes Firebase-backed
-shop inventory and an event calendar, and `admin.html` provides the staff dashboard.
+shop inventory and an event calendar, and `/admin` provides the staff dashboard.
 
 ## Brand Colors
 
@@ -15,7 +15,7 @@ shop inventory and an event calendar, and `admin.html` provides the staff dashbo
 3. Create a Google reCAPTCHA v2 checkbox key for the admin domain and set
    `VITE_RECAPTCHA_SITE_KEY` in `.env`.
 4. Run `npm run dev`.
-5. Open `/` for the storefront, `/gallery.html` for the shop, or `/admin.html` for the dashboard.
+5. Open `/` for the storefront, `/shop` for the shop, or `/admin` for the dashboard.
 
 The Firebase emulator requires JDK 21 or newer. To develop against local Firebase services,
 run `npm run emulators`, set
@@ -34,23 +34,23 @@ run `npm run emulators`, set
    checked-in Firestore and Storage rules with `npm run deploy:rules`.
 
 Public visitors can read only published products and published events. Approved staff can
-manage inventory and events after signing in through `admin.html`. New grouped products
+manage inventory and events after signing in through `/admin`. New grouped products
 start as drafts unless a staff member marks them published, while new events start as
 drafts and must be published explicitly.
 
 ## Product Workflow
 
-1. Open `admin.html` and sign in with a provisioned staff account.
+1. Open `/admin` and sign in with a provisioned staff account.
 2. Choose **New products**, upload any number of images, create color-coded image
    groups, then choose **Next**.
 3. Fill in each group from the draft queue. The dashboard recommends the item type from
    the group image count and generates item IDs like `FK-061826-01`.
-4. Save the drafts, then publish the products that should appear in `gallery.html` and
+4. Save the drafts, then publish the products that should appear in `/shop` and
    the storefront search.
 
 ## Event Workflow
 
-1. Open `admin.html` and sign in with a provisioned staff account.
+1. Open `/admin` and sign in with a provisioned staff account.
 2. Choose **New event**, add the venue, address, goods categories, notes, and schedule,
    then save the draft.
 3. Use **Publish** when the event is ready for visitors.
@@ -63,6 +63,6 @@ drafts and must be published explicitly.
 - `npm run lint`: lint JavaScript and JSX.
 - `npm test`: run event-model unit tests.
 - `npm run test:rules`: run Firestore security-rule tests through the Firestore emulator.
-- `npm run build`: build `index.html`, `gallery.html`, and `admin.html`.
+- `npm run build`: build the storefront, shop, and admin pages.
 - `npm run deploy:rules`: deploy Firestore and Storage security rules.
 - `npm run deploy`: build and publish the static output to GitHub Pages.

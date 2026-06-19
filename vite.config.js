@@ -11,7 +11,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         admin: resolve(import.meta.dirname, 'admin.html'),
-        gallery: resolve(import.meta.dirname, 'gallery.html'),
+        shop: resolve(import.meta.dirname, 'shop.html'),
       },
     },
   },

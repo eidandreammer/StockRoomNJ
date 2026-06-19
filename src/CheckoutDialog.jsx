@@ -125,7 +125,7 @@ function CheckoutDialog({ items, onClose, subtotal }) {
           checkout_mode: buyer.checkoutMode,
           items: items.map((item) => ({
             product_id: item.id,
-            quantity: item.quantity,
+            quantity: 1,
           })),
           user_id: buyer.userId,
         }),
