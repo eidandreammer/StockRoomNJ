@@ -883,6 +883,51 @@
   gap: 15px;
 }
 
+.admin-auth-card.is-wide-auth {
+  width: min(560px, 100%);
+}
+
+.admin-totp-setup {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  padding: 12px;
+}
+
+.admin-totp-setup img {
+  width: min(232px, 100%);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.admin-totp-setup div {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.admin-totp-setup span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.admin-totp-setup code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  padding: 9px;
+  font-size: 0.9rem;
+}
+
 .admin-auth-card p,
 .admin-state p {
   margin: 0;
@@ -926,6 +971,14 @@
 
   .admin-product-actions {
     justify-content: start;
+  }
+
+  .admin-totp-setup {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-totp-setup img {
+    justify-self: center;
   }
 
   .is-wide {

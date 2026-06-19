@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DateTime } from 'luxon'
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import QRCode from 'qrcode'
+import {
+  getMultiFactorResolver,
+  multiFactor,
+  onAuthStateChanged,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  signOut,
+  TotpMultiFactorGenerator,
+} from 'firebase/auth'
 import {
   addDoc,
   collection,
@@ -24,6 +33,47 @@ import {
 } from './events/eventModel'
 
 const now = () => DateTime.now().setZone(STORE_TIME_ZONE)
+
+const AUTH_APP_NAME = 'StockRoom NJ Admin'
+const TOTP_DISPLAY_NAME = 'Authenticator app'
+
+function hasTotpFactor(user) {
+  return multiFactor(user).enrolledFactors.some(
+    (factor) => factor.factorId === TotpMultiFactorGenerator.FACTOR_ID,
+  )
+}
+
+function getTotpHint(resolver) {
+  return resolver.hints.find((hint) => hint.factorId === TotpMultiFactorGenerator.FACTOR_ID)
+}
+
+function formatAuthError(error) {
+  if (error?.code === 'auth/multi-factor-auth-required') {
+    return 'Enter the current 6-digit code from your authenticator app.'
+  }
+
+  if (error?.code === 'auth/invalid-verification-code') {
+    return 'That code is invalid or expired. Try the current code from your authenticator app.'
+  }
+
+  if (error?.code === 'auth/unverified-email') {
+    return 'Verify this email address before setting up two-step authentication.'
+  }
+
+  return error?.message ?? 'Sign-in failed. Check your staff email and password.'
+}
+
+function formatTotpSetupError(error) {
+  if (error?.code === 'auth/invalid-verification-code') {
+    return 'That code is invalid or expired. Try the current code from your authenticator app.'
+  }
+
+  if (error?.code === 'auth/requires-recent-login') {
+    return 'Sign out, sign back in, and set up two-step authentication again.'
+  }
+
+  return error?.message ?? 'Could not set up two-step authentication.'
+}
 
 function dateInput(value) {
   return value ? DateTime.fromJSDate(toDate(value), { zone: STORE_TIME_ZONE }).toFormat('yyyy-LL-dd') : ''
@@ -515,20 +565,277 @@ function OccurrenceManager({ record, onClose, onUpdate }) {
   )
 }
 
+function TotpEnrollment({ user, onComplete }) {
+  const [status, setStatus] = useState(user?.emailVerified ? 'loading' : 'email-unverified')
+  const [totpSecret, setTotpSecret] = useState(null)
+  const [qrCode, setQrCode] = useState('')
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (!user?.emailVerified) {
+      return undefined
+    }
+
+    let isActive = true
+
+    async function prepareTotp() {
+      setStatus('loading')
+      setError('')
+
+      try {
+        const multiFactorSession = await multiFactor(user).getSession()
+        const nextTotpSecret = await TotpMultiFactorGenerator.generateSecret(multiFactorSession)
+        const qrCodeUrl = nextTotpSecret.generateQrCodeUrl(user.email ?? user.uid, AUTH_APP_NAME)
+        const nextQrCode = await QRCode.toDataURL(qrCodeUrl, { margin: 1, width: 232 })
+
+        if (isActive) {
+          setTotpSecret(nextTotpSecret)
+          setQrCode(nextQrCode)
+          setStatus('ready')
+        }
+      } catch (setupError) {
+        if (isActive) {
+          setError(formatTotpSetupError(setupError))
+          setStatus('error')
+        }
+      }
+    }
+
+    prepareTotp()
+
+    return () => {
+      isActive = false
+    }
+  }, [user])
+
+  const sendVerificationEmail = async () => {
+    setError('')
+    setNotice('')
+    setIsSendingEmail(true)
+
+    try {
+      await sendEmailVerification(user)
+      setNotice('Verification email sent. Open it, then sign out and sign back in to continue.')
+    } catch (sendError) {
+      setError(sendError.message ?? 'Could not send the verification email.')
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    const verificationCode = code.trim()
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setError('Enter the 6-digit code from your authenticator app.')
+      return
+    }
+
+    if (!totpSecret) {
+      setError('The authenticator setup is not ready yet.')
+      return
+    }
+
+    setError('')
+    setIsSaving(true)
+
+    try {
+      const assertion = TotpMultiFactorGenerator.assertionForEnrollment(
+        totpSecret,
+        verificationCode,
+      )
+      await multiFactor(user).enroll(assertion, TOTP_DISPLAY_NAME)
+      onComplete()
+    } catch (enrollError) {
+      setError(formatTotpSetupError(enrollError))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (status === 'email-unverified') {
+    return (
+      <main className="admin-state">
+        <h1>Verify this admin email</h1>
+        <p>Firebase requires a verified email before two-step authentication can be enabled.</p>
+        <p>Signed-in email: <code>{user?.email}</code></p>
+        {notice && <p className="admin-alert">{notice}</p>}
+        {error && <p className="admin-alert is-error">{error}</p>}
+        <div className="admin-row">
+          <button className="admin-button" disabled={isSendingEmail} type="button" onClick={sendVerificationEmail}>
+            {isSendingEmail ? 'Sending...' : 'Send verification email'}
+          </button>
+          <button className="admin-button is-secondary" type="button" onClick={() => signOut(auth)}>
+            Sign out
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  if (status === 'loading') {
+    return <main className="admin-state"><p>Preparing two-step authentication...</p></main>
+  }
+
+  if (status === 'error') {
+    return (
+      <main className="admin-state">
+        <h1>Two-step setup failed</h1>
+        {error && <p className="admin-alert is-error">{error}</p>}
+        <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>
+      </main>
+    )
+  }
+
+  return (
+    <main className="admin-auth-shell">
+      <form className="admin-auth-card is-wide-auth" onSubmit={handleSubmit}>
+        <p className="admin-kicker">Required security setup</p>
+        <h1>Enable two-step authentication</h1>
+        <p>Scan this QR code with Google Authenticator, Authy, Microsoft Authenticator, or another TOTP app.</p>
+        {error && <p className="admin-alert is-error">{error}</p>}
+        <div className="admin-totp-setup">
+          {qrCode && <img alt="Authenticator app QR code" src={qrCode} />}
+          <div>
+            <span>Manual setup key</span>
+            <code>{totpSecret?.secretKey}</code>
+          </div>
+        </div>
+        <label>
+          <span>6-digit code</span>
+          <input
+            required
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            maxLength="6"
+            pattern="[0-9]{6}"
+            value={code}
+            onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+          />
+        </label>
+        <div className="admin-row">
+          <button className="admin-button" disabled={isSaving} type="submit">
+            {isSaving ? 'Verifying...' : 'Enable 2FA'}
+          </button>
+          <button className="admin-button is-secondary" type="button" onClick={() => signOut(auth)}>
+            Sign out
+          </button>
+        </div>
+      </form>
+    </main>
+  )
+}
+
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [mfaResolver, setMfaResolver] = useState(null)
+  const [mfaCode, setMfaCode] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
+    setIsSubmitting(true)
 
     try {
       await signInWithEmailAndPassword(auth, email, password)
-    } catch {
-      setError('Sign-in failed. Check your staff email and password.')
+    } catch (signInError) {
+      if (signInError?.code === 'auth/multi-factor-auth-required') {
+        const resolver = getMultiFactorResolver(auth, signInError)
+
+        if (!getTotpHint(resolver)) {
+          setError('This dashboard only supports authenticator app verification.')
+          setIsSubmitting(false)
+          return
+        }
+
+        setMfaResolver(resolver)
+        setMfaCode('')
+        setIsSubmitting(false)
+        return
+      }
+
+      setError(formatAuthError(signInError))
+      setIsSubmitting(false)
     }
+  }
+
+  const handleTotpSubmit = async (event) => {
+    event.preventDefault()
+    const verificationCode = mfaCode.trim()
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setError('Enter the 6-digit code from your authenticator app.')
+      return
+    }
+
+    const totpHint = getTotpHint(mfaResolver)
+
+    if (!totpHint) {
+      setError('This dashboard only supports authenticator app verification.')
+      return
+    }
+
+    setError('')
+    setIsSubmitting(true)
+
+    try {
+      const assertion = TotpMultiFactorGenerator.assertionForSignIn(totpHint.uid, verificationCode)
+      await mfaResolver.resolveSignIn(assertion)
+    } catch (totpError) {
+      setError(formatAuthError(totpError))
+      setIsSubmitting(false)
+    }
+  }
+
+  if (mfaResolver) {
+    return (
+      <main className="admin-auth-shell">
+        <form className="admin-auth-card" onSubmit={handleTotpSubmit}>
+          <p className="admin-kicker">StockRoom NJ</p>
+          <h1>Two-step verification</h1>
+          <p>Enter the current 6-digit code from your authenticator app.</p>
+          {error && <p className="admin-alert is-error">{error}</p>}
+          <label>
+            <span>6-digit code</span>
+            <input
+              required
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              maxLength="6"
+              pattern="[0-9]{6}"
+              value={mfaCode}
+              onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            />
+          </label>
+          <div className="admin-row">
+            <button className="admin-button" disabled={isSubmitting} type="submit">
+              {isSubmitting ? 'Verifying...' : 'Verify'}
+            </button>
+            <button
+              className="admin-button is-secondary"
+              disabled={isSubmitting}
+              type="button"
+              onClick={() => {
+                setMfaResolver(null)
+                setMfaCode('')
+                setPassword('')
+                setError('')
+              }}
+            >
+              Back
+            </button>
+          </div>
+        </form>
+      </main>
+    )
   }
 
   return (
@@ -540,7 +847,9 @@ function Login() {
         {error && <p className="admin-alert is-error">{error}</p>}
         <label><span>Email</span><input required autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label><span>Password</span><input required autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-        <button className="admin-button" type="submit">Sign in</button>
+        <button className="admin-button" disabled={isSubmitting} type="submit">
+          {isSubmitting ? 'Signing in...' : 'Sign in'}
+        </button>
         <a href="./">Back to storefront</a>
       </form>
     </main>
@@ -575,7 +884,12 @@ function AdminApp() {
 
       try {
         const adminDoc = await getDoc(doc(db, 'admins', nextUser.uid))
-        setAuthState(adminDoc.exists() ? 'authorized' : 'unauthorized')
+        if (!adminDoc.exists()) {
+          setAuthState('unauthorized')
+          return
+        }
+
+        setAuthState(hasTotpFactor(nextUser) ? 'authorized' : 'mfa-enrollment-required')
       } catch (error) {
         setAuthError(error.message)
         setAuthState('verification-error')
@@ -695,6 +1009,10 @@ function AdminApp() {
 
   if (authState === 'signed-out') {
     return <Login />
+  }
+
+  if (authState === 'mfa-enrollment-required') {
+    return <TotpEnrollment user={user} onComplete={() => setAuthState('authorized')} />
   }
 
   if (authState === 'unauthorized') {
