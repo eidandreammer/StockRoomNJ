@@ -21,6 +21,7 @@ import {
   uploadProductImages,
 } from './productImages'
 import { normalizeProduct, sortProducts } from './usePublishedProducts'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -151,7 +152,7 @@ function ProductEditor({ isSaving, onCancel, onSave, record }) {
       })
       .catch((previewError) => {
         if (isCurrent) {
-          setError(previewError.message)
+          setError(getFriendlyErrorMessage(previewError, 'admin'))
         }
       })
 
@@ -393,7 +394,7 @@ function AdminProducts({ user }) {
         setProducts(snapshot.docs.map(normalizeAdminProduct).sort(sortProducts))
         setError('')
       },
-      (snapshotError) => setError(snapshotError.message),
+      (snapshotError) => setError(getFriendlyErrorMessage(snapshotError, 'admin')),
     )
   }, [])
 
@@ -497,7 +498,7 @@ function AdminProducts({ user }) {
 
       setEditing(null)
     } catch (saveError) {
-      setError(saveError.message)
+      setError(getFriendlyErrorMessage(saveError, 'admin'))
     } finally {
       setIsSaving(false)
     }
@@ -587,7 +588,7 @@ function AdminProducts({ user }) {
       setIsBatchOpen(false)
       setNotice(`${savedCount} product draft${savedCount === 1 ? '' : 's'} saved.`)
     } catch (saveError) {
-      setError(saveError.message)
+      setError(getFriendlyErrorMessage(saveError, 'admin'))
       throw saveError
     } finally {
       setIsSaving(false)

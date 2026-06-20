@@ -12,6 +12,7 @@ import {
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { Icon } from './SiteChrome'
+import FriendlyAlert from './FriendlyAlert'
 
 const states = [
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
@@ -56,6 +57,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
   // Status State
   const [status, setStatus] = useState('idle') // 'loading', 'saving', 'success', 'error'
   const [message, setMessage] = useState('')
+  const [errorObject, setErrorObject] = useState(null)
 
   useEffect(() => {
     if (!auth) return
@@ -95,6 +97,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
     setNotifyNewsletter(false)
     setNotifyReceipts(true)
     setMessage('')
+    setErrorObject(null)
     setStatus('idle')
   }
 
@@ -147,7 +150,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
     } catch (err) {
       console.error('Error loading user data:', err)
       setStatus('error')
-      setMessage('Failed to load profile details.')
+      setErrorObject(err)
     }
   }
 
@@ -156,6 +159,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
     e.preventDefault()
     setStatus('saving')
     setMessage('')
+    setErrorObject(null)
 
     try {
       if (authMode === 'signin') {
@@ -196,7 +200,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
         )
         if (!totpHint) {
           setStatus('error')
-          setMessage('Authenticator app verification is required but not configured.')
+          setErrorObject(new Error('Authenticator app verification is required but not configured.'))
           return
         }
         setMfaResolver(resolver)
@@ -206,7 +210,23 @@ export default function AccountDrawer({ isOpen, onClose }) {
         return
       }
       setStatus('error')
-      setMessage(err.message || 'Authentication operation failed.')
+      setErrorObject(err)
+    }
+  }
+
+  const handleErrorAction = (action) => {
+    if (action.type === 'switch_to_signup') {
+      setAuthMode('signup')
+      setErrorObject(null)
+      setMessage('')
+    } else if (action.type === 'switch_to_signin') {
+      setAuthMode('signin')
+      setErrorObject(null)
+      setMessage('')
+    } else if (action.type === 'switch_to_forgot') {
+      setAuthMode('forgot')
+      setErrorObject(null)
+      setMessage('')
     }
   }
 
@@ -216,7 +236,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
 
     if (!/^\d{6}$/.test(verificationCode)) {
       setStatus('error')
-      setMessage('Enter the 6-digit code from your authenticator app.')
+      setErrorObject(new Error('Enter the 6-digit code from your authenticator app.'))
       return
     }
 
@@ -226,12 +246,13 @@ export default function AccountDrawer({ isOpen, onClose }) {
 
     if (!totpHint) {
       setStatus('error')
-      setMessage('Authenticator app verification is not set up properly.')
+      setErrorObject(new Error('Authenticator app verification is not set up properly.'))
       return
     }
 
     setStatus('saving')
     setMessage('')
+    setErrorObject(null)
 
     try {
       const assertion = TotpMultiFactorGenerator.assertionForSignIn(totpHint.uid, verificationCode)
@@ -242,11 +263,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
     } catch (totpError) {
       console.error(totpError)
       setStatus('error')
-      if (totpError?.code === 'auth/invalid-verification-code') {
-        setMessage('That code is invalid or expired. Try the current code from your authenticator app.')
-      } else {
-        setMessage(totpError.message || 'Verification failed.')
-      }
+      setErrorObject(totpError)
     }
   }
 
@@ -301,7 +318,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
     } catch (err) {
       console.error(err)
       setStatus('error')
-      setMessage(err.message || 'Failed to save changes.')
+      setErrorObject(err)
     }
   }
 
@@ -314,7 +331,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
     } catch (err) {
       console.error(err)
       setStatus('error')
-      setMessage('Failed to sign out.')
+      setErrorObject(err)
     }
   }
 
@@ -375,11 +392,13 @@ export default function AccountDrawer({ isOpen, onClose }) {
                   />
                 </label>
 
-                {message && (
-                  <p className={`account-message is-${status}`} role="alert">
+                {status === 'error' && errorObject ? (
+                  <FriendlyAlert error={errorObject} context="customer" onAction={handleErrorAction} style={{ margin: '8px 0 0' }} />
+                ) : message ? (
+                  <p className={`account-message is-${status}`} role="status">
                     {message}
                   </p>
-                )}
+                ) : null}
 
                 <button
                   type="submit"
@@ -485,11 +504,13 @@ export default function AccountDrawer({ isOpen, onClose }) {
                     </button>
                   )}
 
-                  {message && (
-                    <p className={`account-message is-${status}`} role="alert">
+                  {status === 'error' && errorObject ? (
+                    <FriendlyAlert error={errorObject} context="customer" onAction={handleErrorAction} style={{ margin: '8px 0 0' }} />
+                  ) : message ? (
+                    <p className={`account-message is-${status}`} role="status">
                       {message}
                     </p>
-                  )}
+                  ) : null}
 
                   <button
                     type="submit"
@@ -739,11 +760,13 @@ export default function AccountDrawer({ isOpen, onClose }) {
                   </div>
                 )}
 
-                {message && (
-                  <p className={`account-message is-${status}`} role="alert">
+                {status === 'error' && errorObject ? (
+                  <FriendlyAlert error={errorObject} context="customer" onAction={handleErrorAction} style={{ margin: '8px 0 0' }} />
+                ) : message ? (
+                  <p className={`account-message is-${status}`} role="status">
                     {message}
                   </p>
-                )}
+                ) : null}
 
                 {status !== 'loading' && (
                   <button

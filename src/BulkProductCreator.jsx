@@ -10,6 +10,7 @@ import {
 } from './itemTypes'
 import { createProductImagePreview, imageValidationError } from './productImages'
 import { shopCategories } from './shopCatalog'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 const groupColors = [
   '#0057ff',
@@ -387,11 +388,11 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
                 : currentPhoto,
             ),
           )
-          setError(previewError.message)
+          setError(getFriendlyErrorMessage(previewError, 'admin'))
         }
       }).catch((queueError) => {
         if (isMountedRef.current) {
-          setError(queueError.message)
+          setError(getFriendlyErrorMessage(queueError, 'admin'))
         }
       })
     }
@@ -643,7 +644,7 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
     try {
       await onSaveGroups(groupedDrafts, { batchDate })
     } catch (saveError) {
-      setError(saveError.message)
+      setError(getFriendlyErrorMessage(saveError, 'admin'))
     }
   }
 

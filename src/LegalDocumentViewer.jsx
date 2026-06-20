@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import './LegalDocument.css'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 function parseMarkdownToJsx(text) {
   if (!text) return [];
@@ -125,7 +126,7 @@ export default function LegalDocumentViewer({ contentUrl, documentTitle, effecti
       })
       .catch((err) => {
         if (isActive) {
-          setError(err.message)
+          setError(getFriendlyErrorMessage(err, 'customer'))
           setStatus('error')
         }
       })

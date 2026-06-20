@@ -7,6 +7,7 @@ import {
   uploadLegalDocumentFile,
 } from './legalDocuments'
 import LegalDocumentModal from './LegalDocumentModal'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 function emptyLegalForm() {
   return {
@@ -76,7 +77,7 @@ function AdminLegalDocuments({ user }) {
         }
       } catch (loadError) {
         if (isActive) {
-          setError(loadError.message)
+          setError(getFriendlyErrorMessage(loadError, 'admin'))
           setStatus('error')
         }
       }
@@ -123,7 +124,7 @@ function AdminLegalDocuments({ user }) {
       setNotice(`${legalDocumentLabels[form.documentType]} version ${versionNumber} is now active.`)
       setStatus('ready')
     } catch (publishError) {
-      setError(publishError.message)
+      setError(getFriendlyErrorMessage(publishError, 'admin'))
       setStatus('ready')
     }
   }

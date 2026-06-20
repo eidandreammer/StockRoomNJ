@@ -89,9 +89,97 @@ drafts and must be published explicitly.
 
 ## Commands
 
-- `npm run lint`: lint JavaScript and JSX.
+- `npm run dev`: start the Vite development server locally.
+- `npm run build`: build the storefront, shop, and admin pages into the `dist/` directory.
+- `npm run lint`: lint JavaScript and JSX files.
+- `npm run preview`: preview the production build locally.
 - `npm test`: run event-model unit tests.
 - `npm run test:rules`: run Firestore security-rule tests through the Firestore emulator.
-- `npm run build`: build the storefront, shop, and admin pages.
-- `npm run deploy:rules`: deploy Firestore and Storage security rules.
-- `npm run deploy`: build and publish the static output to GitHub Pages.
+- `npm run emulators`: start local Firebase Emulators (Auth, Firestore, Storage, Functions).
+- `npm run functions:lint`: lint Firebase Functions code.
+- `npm run migrate:legal`: run the migration script for legal documents database state.
+- `npm run deploy`: build the Vite app and deploy to Firebase Hosting and Functions.
+- `npm run deploy:hosting`: build the Vite app and deploy only the static files to Firebase Hosting.
+- `npm run deploy:rules`: deploy Firestore and Storage security rules to Firebase.
+- `npm run deploy:all`: build the Vite app and deploy Hosting, Functions, Firestore rules, and Storage rules.
+- `npm run verify`: verify the project by running ESLint, tests, and a production build.
+- `npm run release`: verify the project and deploy Hosting + Functions.
+
+## Version Control and Firebase Deployment Workflow
+
+This project is configured to use Firebase Hosting exclusively for production. GitHub Pages is no longer used.
+
+Follow this standard workflow to develop, commit, and deploy changes:
+
+### A. Before coding
+
+Make sure your local branch is synchronized with the remote repository:
+
+```bash
+git status
+git pull origin main
+```
+
+### B. Run locally
+
+Install dependencies, set up environment variables, and run the development server:
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+### C. Before committing
+
+Verify that your changes pass all linters, tests, and build successfully:
+
+```bash
+npm run verify
+```
+
+### D. Commit changes
+
+Commit and push your verified changes to GitHub:
+
+```bash
+git add .
+git commit -m "Describe the change clearly"
+git push origin main
+```
+
+### E. Deploy to Firebase Hosting and Functions
+
+Deploy hosting resources and Cloud Functions to production:
+
+```bash
+npm run deploy
+```
+
+### F. Deploy everything, including rules
+
+To deploy security rules along with Hosting and Functions, run:
+
+```bash
+npm run deploy:all
+```
+
+---
+
+## DNS Migration Note
+
+The production domain must point to Firebase Hosting. If the domain currently has Cloudflare A records pointing to GitHub Pages, replace those records with the exact DNS records provided by the Firebase Hosting custom-domain setup screen in the Firebase Console. Do not guess DNS records manually. Cloudflare should remain in DNS-only mode unless intentionally configured otherwise.
+
+---
+
+### Production Deployment Checklist
+
+- [ ] `git status` is clean or only expected files changed
+- [ ] `.env.production.local` exists locally if production build variables are needed
+- [ ] No secrets are committed
+- [ ] `npm run verify` passes
+- [ ] Firebase CLI is logged in
+- [ ] Correct Firebase project is selected or passed with `--project stockroomnj-10e7d`
+- [ ] `npm run deploy` completes successfully
+- [ ] Visit the production domain and test `/`, `/shop`, `/admin`, and at least one `/api/**` backed feature
+

@@ -5,6 +5,7 @@ import { shopProductCategories, shopCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
 import { productGalleryUrl } from './siteConfig'
 import QuickBid from './QuickBid'
+import FriendlyAlert from './FriendlyAlert'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -460,10 +461,7 @@ function InventorySearch() {
                       <span>Current products will appear here.</span>
                     </>
                   ) : status === 'error' ? (
-                    <>
-                      <p>Inventory is unavailable.</p>
-                      <span>{error}</span>
-                    </>
+                    <FriendlyAlert error={error} context="customer" style={{ maxWidth: '400px', margin: '0 auto' }} />
                   ) : (
                     <>
                       <p>No products match this view.</p>
@@ -491,7 +489,7 @@ function InventorySearch() {
             )}
 
             {status === 'error' && (
-              <p className="home-featured-status is-error">{error}</p>
+              <FriendlyAlert error={error} context="customer" style={{ marginBottom: '32px' }} />
             )}
 
             {categoryHighlights.length > 0 ? (

@@ -8,6 +8,7 @@ import {
   loadMissingLegalDocumentTypes,
 } from './legalDocuments'
 import LegalDocumentModal from './LegalDocumentModal'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 function LegalConsentPrompt() {
   const [user, setUser] = useState(auth?.currentUser ?? null)
@@ -52,7 +53,7 @@ function LegalConsentPrompt() {
         }
       } catch (loadError) {
         if (isActive) {
-          setError(loadError.message)
+          setError(getFriendlyErrorMessage(loadError, 'customer'))
           setStatus('error')
         }
       }
@@ -94,7 +95,7 @@ function LegalConsentPrompt() {
       setAccepted({})
       setStatus('ready')
     } catch (saveError) {
-      setError(saveError.message)
+      setError(getFriendlyErrorMessage(saveError, 'customer'))
       setStatus('ready')
     }
   }

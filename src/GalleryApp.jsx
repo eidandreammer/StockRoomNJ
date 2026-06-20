@@ -5,6 +5,7 @@ import QuickBid from './QuickBid'
 import SiteShell from './SiteChrome'
 import { shopCategories, shopProductCategories } from './shopCatalog'
 import { usePublishedProducts } from './usePublishedProducts'
+import FriendlyAlert from './FriendlyAlert'
 import './App.css'
 import './Gallery.css'
 
@@ -549,7 +550,7 @@ function GalleryApp() {
 
               {status === 'error' && (
                 <div className="gallery-container">
-                  <p className="gallery-status-message is-error">{error}</p>
+                  <FriendlyAlert error={error} context="customer" />
                 </div>
               )}
 

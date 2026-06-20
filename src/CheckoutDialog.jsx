@@ -10,6 +10,7 @@ import {
   loadMissingLegalDocumentTypes,
 } from './legalDocuments'
 import LegalDocumentModal from './LegalDocumentModal'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 function buyerIdentity() {
   const user = auth?.currentUser
@@ -86,7 +87,7 @@ function CheckoutDialog({ items, onClose, subtotal }) {
         }
       } catch (loadError) {
         if (isActive) {
-          setError(loadError.message)
+          setError(getFriendlyErrorMessage(loadError, 'customer'))
           setStatus('error')
         }
       }
@@ -148,7 +149,7 @@ function CheckoutDialog({ items, onClose, subtotal }) {
 
       window.location.assign(checkout.url)
     } catch (checkoutError) {
-      setError(checkoutError.message)
+      setError(getFriendlyErrorMessage(checkoutError, 'customer'))
       setStatus('ready')
     }
   }

@@ -4,6 +4,7 @@ import { apiRequest } from './api'
 import { calculateIncrement } from './bidMath'
 import { auth } from './firebase'
 import { getVisitorId } from './legalIdentity'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -77,7 +78,7 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
       onBidPlaced?.(result)
     } catch (error) {
       setStatus('error')
-      setMessage(error.message)
+      setMessage(getFriendlyErrorMessage(error, 'customer'))
     }
   }
 

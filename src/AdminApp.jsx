@@ -21,6 +21,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured, isUsingFirebaseEmulators } from './firebase'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 import AdminBids from './AdminBids'
 import AdminLegalDocuments from './AdminLegalDocuments'
 import AdminProducts from './AdminProducts'
@@ -105,19 +106,7 @@ function getTotpHint(resolver) {
 }
 
 function formatAuthError(error) {
-  if (error?.code === 'auth/multi-factor-auth-required') {
-    return 'Enter the current 6-digit code from your authenticator app.'
-  }
-
-  if (error?.code === 'auth/invalid-verification-code') {
-    return 'That code is invalid or expired. Try the current code from your authenticator app.'
-  }
-
-  if (error?.code === 'auth/unverified-email') {
-    return 'Verify this email address before setting up two-step authentication.'
-  }
-
-  return error?.message ?? 'Sign-in failed. Check your staff email and password.'
+  return getFriendlyErrorMessage(error, 'admin')
 }
 
 function formatTotpSetupError(error) {
@@ -125,15 +114,7 @@ function formatTotpSetupError(error) {
     return 'Two-step authentication (TOTP MFA) is not supported by the Firebase Auth Emulator. Bypassing is required for local development.'
   }
 
-  if (error?.code === 'auth/invalid-verification-code') {
-    return 'That code is invalid or expired. Try the current code from your authenticator app.'
-  }
-
-  if (error?.code === 'auth/requires-recent-login') {
-    return 'Sign out, sign back in, and set up two-step authentication again.'
-  }
-
-  return error?.message ?? 'Could not set up two-step authentication.'
+  return getFriendlyErrorMessage(error, 'admin')
 }
 
 function dateInput(value) {
@@ -1073,7 +1054,7 @@ function AdminApp() {
 
         setAuthState((hasTotpFactor(nextUser) || isUsingFirebaseEmulators) ? 'authorized' : 'mfa-enrollment-required')
       } catch (error) {
-        setAuthError(error.message)
+        setAuthError(getFriendlyErrorMessage(error, 'admin'))
         setAuthState('verification-error')
       }
     })
@@ -1144,7 +1125,7 @@ function AdminApp() {
       setNotice('Event updated.')
       setEditing(null)
     } catch (saveError) {
-      setError(saveError.message)
+      setError(getFriendlyErrorMessage(saveError, 'admin'))
     } finally {
       setIsSaving(false)
     }
@@ -1161,7 +1142,7 @@ function AdminApp() {
         updatedBy: user.uid,
       })
     } catch (updateError) {
-      setError(updateError.message)
+      setError(getFriendlyErrorMessage(updateError, 'admin'))
     }
   }
 
@@ -1177,7 +1158,7 @@ function AdminApp() {
       await deleteDoc(doc(db, 'events', record.id))
       setNotice('Event deleted.')
     } catch (deleteError) {
-      setError(deleteError.message)
+      setError(getFriendlyErrorMessage(deleteError, 'admin'))
     }
   }
 
@@ -1201,8 +1182,7 @@ function AdminApp() {
     return (
       <main className="admin-state">
         <h1>Staff access required</h1>
-        <p>This account is signed in but is not listed in the Firebase <code>admins</code> collection.</p>
-        <p>Create a Firestore document at <code>admins/{user?.uid}</code> with <code>enabled: true</code>.</p>
+        <p>This account does not have dashboard access. Ask an owner to add it as an approved staff account.</p>
         <p>Signed-in UID: <code>{user?.uid}</code></p>
         <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>
       </main>
@@ -1213,7 +1193,7 @@ function AdminApp() {
     return (
       <main className="admin-state">
         <h1>Could not verify staff access</h1>
-        <p>Firebase Auth signed in, but Firestore could not read the matching admin document.</p>
+        <p>This account is signed in, but it is not approved for the dashboard yet.</p>
         <p>Signed-in UID: <code>{user?.uid}</code></p>
         {authError && <p className="admin-alert is-error">{authError}</p>}
         <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>

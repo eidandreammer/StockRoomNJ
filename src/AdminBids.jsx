@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import { authorizedApiRequest } from './api'
 import { db } from './firebase'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -31,7 +32,7 @@ function AdminBids({ user }) {
       },
       (snapshotError) => {
         setStatus('error')
-        setError(snapshotError.message)
+        setError(getFriendlyErrorMessage(snapshotError, 'admin'))
       },
     )
   }, [])
@@ -60,7 +61,7 @@ function AdminBids({ user }) {
 
       setNotice(`Approved ${priceFormatter.format(result.order.amount)} for ${bid.productName}.`)
     } catch (approveError) {
-      setError(approveError.message)
+      setError(getFriendlyErrorMessage(approveError, 'admin'))
     } finally {
       setApprovingId('')
     }

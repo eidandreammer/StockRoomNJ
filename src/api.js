@@ -4,6 +4,15 @@ function endpoint(path) {
   return `${apiBaseUrl}${path}`
 }
 
+export class ApiError extends Error {
+  constructor(message, status, payload) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.payload = payload
+  }
+}
+
 export async function apiRequest(path, options = {}) {
   const response = await fetch(endpoint(path), {
     ...options,
@@ -15,7 +24,11 @@ export async function apiRequest(path, options = {}) {
   const payload = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    throw new Error(payload.error || `Request failed with status ${response.status}`)
+    throw new ApiError(
+      payload.error || `Request failed with status ${response.status}`,
+      response.status,
+      payload
+    )
   }
 
   return payload

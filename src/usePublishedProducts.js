@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import { db, isFirebaseConfigured } from './firebase'
+import { getFriendlyErrorMessage } from './friendlyErrors'
 
 function timestampToMillis(value) {
   if (!value) {
@@ -93,7 +94,7 @@ export function usePublishedProducts() {
       },
       (snapshotError) => {
         setStatus('error')
-        setError(snapshotError.message)
+        setError(getFriendlyErrorMessage(snapshotError, 'customer'))
       },
     )
   }, [])
