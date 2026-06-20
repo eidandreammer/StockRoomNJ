@@ -29,12 +29,35 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
 
 1. Create a Firebase project and register a web app.
 2. Enable Firestore, Firebase Storage, and Email/Password authentication.
-3. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
-4. Create each staff account in Firebase Console under Authentication.
-5. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
+3. Install the Firebase Extension **Trigger Email from Firestore** and configure it to
+   watch the `mail` collection, or the collection named by `FIREBASE_EMAIL_COLLECTION`.
+   Configure SMTP provider credentials in the Firebase Extensions setup, not in this
+   app's Cloud Functions code.
+4. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
+5. Create each staff account in Firebase Console under Authentication.
+6. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
    may contain `{ "enabled": true }`; authorization is based on the document existing.
-6. Run `firebase login`, select the project with `firebase use --add`, and deploy the
+7. Run `firebase login`, select the project with `firebase use --add`, and deploy the
    checked-in Firestore and Storage rules with `npm run deploy:rules`.
+
+Cloud Functions queue transactional email by writing documents to Firestore with this
+shape:
+
+```js
+{
+  to: ['customer@example.com'],
+  message: {
+    subject: 'Subject here',
+    html: '<p>HTML email body</p>',
+    text: 'Plaintext fallback here',
+  },
+}
+```
+
+In emulator/local development, queued messages should appear as documents in the `mail`
+collection. Actual delivery depends on the Trigger Email from Firestore extension and
+SMTP credentials being installed and configured for the Firebase environment you are
+using.
 
 Public visitors can read only published products and published events. Approved staff can
 manage inventory and events after signing in through `/admin`. New grouped products

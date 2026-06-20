@@ -41,7 +41,7 @@ function parseMarkdownToJsx(text) {
     }
 
     // List items
-    const listMatch = line.match(/^[\*\-]\s+(.*)$/);
+    const listMatch = line.match(/^[*-]\s+(.*)$/);
     if (listMatch) {
       currentList.push(listMatch[1]);
       continue;
@@ -97,6 +97,7 @@ export default function LegalDocumentViewer({ contentUrl, documentTitle, effecti
   const [activeSection, setActiveSection] = useState('')
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- Reset fetch state when the document URL changes. */
     if (!contentUrl) {
       setStatus('error')
       setError('No content URL provided.')
@@ -106,6 +107,7 @@ export default function LegalDocumentViewer({ contentUrl, documentTitle, effecti
     let isActive = true
     setStatus('loading')
     setError('')
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // Fetch the markdown file
     fetch(contentUrl)

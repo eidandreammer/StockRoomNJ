@@ -3,38 +3,50 @@ import admin from 'firebase-admin'
 import { onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import Stripe from 'stripe'
-import postmark from 'postmark'
 
 admin.initializeApp()
 
 const db = admin.firestore()
+const mailCollection = process.env.FIREBASE_EMAIL_COLLECTION || 'mail'
+const defaultFromEmail = process.env.FIREBASE_EMAIL_FROM || 'thestockroomnj@gmail.com'
 
-let postmarkClient = null
-function getPostmark() {
-  if (postmarkClient) return postmarkClient
-  const token = process.env.POSTMARK_SERVER_TOKEN || ''
-  const fromEmail = process.env.POSTMARK_FROM_EMAIL || 'thestockroomnj@gmail.com'
+async function enqueueEmail({ to, subject, html, text, category, headers = {} }) {
+  const normalizedTo = Array.isArray(to) ? to : [to]
+  const recipients = normalizedTo
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
 
-  if (token && token !== 'placeholder') {
-    postmarkClient = new postmark.ServerClient(token)
-  } else {
-    // Mock client for local development / testing without a live Postmark account
-    postmarkClient = {
-      sendEmail: async (payload) => {
-        console.log('--- [MOCK POSTMARK EMAIL SENT] ---')
-        console.log(`From: ${payload.From || fromEmail}`)
-        console.log(`To: ${payload.To}`)
-        console.log(`Subject: ${payload.Subject}`)
-        console.log(`Body:\n${payload.HtmlBody || payload.TextBody}`)
-        console.log('---------------------------------')
-        return { MessageID: 'mock-id-' + Date.now() }
-      }
-    }
+  if (recipients.length === 0) {
+    console.log(`Skipping email "${subject}" because no recipient was provided.`)
+    return null
   }
-  return postmarkClient
-}
 
-const getFromEmail = () => process.env.POSTMARK_FROM_EMAIL || 'thestockroomnj@gmail.com'
+  const payload = {
+    to: recipients,
+    message: {
+      subject,
+      html,
+      text,
+    },
+    headers: {
+      ...headers,
+    },
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    status: 'queued',
+  }
+
+  if (defaultFromEmail) {
+    payload.from = defaultFromEmail
+  }
+
+  if (category) {
+    payload.category = category
+  }
+
+  const docRef = await db.collection(mailCollection).add(payload)
+  console.log(`Queued email "${subject}" to ${recipients.join(', ')} as ${mailCollection}/${docRef.id}`)
+  return docRef.id
+}
 
 async function shouldSendEmail(userId, preferenceKey) {
   if (!userId || userId.startsWith('guest:')) {
@@ -427,12 +439,11 @@ async function handlePlaceBid(request, response) {
         console.log(`User ${userId} opted out of bidding emails. Skipping bid confirmation.`)
         return
       }
-      const client = getPostmark()
-      await client.sendEmail({
-        From: getFromEmail(),
-        To: buyerEmail,
-        Subject: `Bid Received: ${productName}`,
-        HtmlBody: `
+      await enqueueEmail({
+        to: buyerEmail,
+        subject: `Bid Received: ${productName}`,
+        category: 'bid_confirmation',
+        html: `
           <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
             <h2 style="color: #002366; border-bottom: 2px solid #002366; padding-bottom: 10px;">Bid Received</h2>
             <p>Hi there,</p>
@@ -446,36 +457,33 @@ async function handlePlaceBid(request, response) {
             </p>
           </div>
         `,
-        TextBody: `Hi there,\n\nWe've received your bid of $${bidRecord.amount.toFixed(2)} for ${productName}. It is currently pending admin approval.\n\nView Auction Page: https://stockroomnj.com/shop`
+        text: `Hi there,\n\nWe've received your bid of $${bidRecord.amount.toFixed(2)} for ${productName}. It is currently pending admin approval.\n\nView Auction Page: https://stockroomnj.com/shop`
       })
-      console.log(`Bid confirmation email sent to ${buyerEmail}`)
     } catch (err) {
-      console.error(`Failed to send bid confirmation email to ${buyerEmail}:`, err)
+      console.error(`Failed to queue bid confirmation email to ${buyerEmail}:`, err)
     }
   }
-  sendBidEmail()
+  await sendBidEmail()
 
   // 2. Send outbid alert email to previous bidder
   if (previousBidId) {
-    db.collection('bids')
-      .doc(previousBidId)
-      .get()
-      .then(async (previousBidSnap) => {
-        if (!previousBidSnap.exists) return
+    try {
+      const previousBidSnap = await db.collection('bids').doc(previousBidId).get()
+      if (previousBidSnap.exists) {
         const prevBid = previousBidSnap.data()
-        if (prevBid.buyerEmail && prevBid.buyerEmail.trim().toLowerCase() !== buyerEmail.trim().toLowerCase()) {
-          try {
-            const sendAllowed = await shouldSendEmail(prevBid.userId, 'biddingUpdates')
-            if (!sendAllowed) {
-              console.log(`User ${prevBid.userId} opted out of bidding emails. Skipping outbid alert.`)
-              return
-            }
-            const client = getPostmark()
-            await client.sendEmail({
-              From: getFromEmail(),
-              To: prevBid.buyerEmail,
-              Subject: `You've been outbid! ${productName}`,
-              HtmlBody: `
+        const previousEmail = String(prevBid.buyerEmail || '').trim()
+        const currentEmail = buyerEmail.trim().toLowerCase()
+
+        if (previousEmail && previousEmail.toLowerCase() !== currentEmail) {
+          const sendAllowed = await shouldSendEmail(prevBid.userId, 'biddingUpdates')
+          if (!sendAllowed) {
+            console.log(`User ${prevBid.userId} opted out of bidding emails. Skipping outbid alert.`)
+          } else {
+            await enqueueEmail({
+              to: previousEmail,
+              subject: `You've been outbid! ${productName}`,
+              category: 'outbid_notification',
+              html: `
                 <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
                   <h2 style="color: #f04438; border-bottom: 2px solid #f04438; padding-bottom: 10px;">You've Been Outbid</h2>
                   <p>Hi,</p>
@@ -490,17 +498,14 @@ async function handlePlaceBid(request, response) {
                   </p>
                 </div>
               `,
-              TextBody: `Hi,\n\nYou've been outbid on ${productName}. The new current bid is $${bidRecord.amount.toFixed(2)}.\n\nBid Again: https://stockroomnj.com/shop`
+              text: `Hi,\n\nYou've been outbid on ${productName}. The new current bid is $${bidRecord.amount.toFixed(2)}.\n\nBid Again: https://stockroomnj.com/shop`
             })
-            console.log(`Outbid email successfully sent to ${prevBid.buyerEmail}`)
-          } catch (err) {
-            console.error(`Failed to send outbid email to ${prevBid.buyerEmail}:`, err)
           }
         }
-      })
-      .catch((err) => {
-        console.error('Error fetching previous bid for outbid email:', err)
-      })
+      }
+    } catch (err) {
+      console.error('Failed to queue outbid email:', err)
+    }
   }
 
   sendJson(response, 201, {
@@ -716,12 +721,11 @@ async function handleApproveBid(request, response) {
           console.log(`User ${order.userId} opted out of bidding emails. Skipping approval invoice.`)
           return
         }
-        const client = getPostmark()
-        await client.sendEmail({
-          From: getFromEmail(),
-          To: order.buyerEmail,
-          Subject: `Congratulations! Your bid was approved for ${order.productName}`,
-          HtmlBody: `
+        await enqueueEmail({
+          to: order.buyerEmail,
+          subject: `Congratulations! Your bid was approved for ${order.productName}`,
+          category: 'bid_approval_checkout',
+          html: `
             <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
               <h2 style="color: #002366; border-bottom: 2px solid #002366; padding-bottom: 10px;">Congratulations! You Won</h2>
               <p>Hi there,</p>
@@ -739,14 +743,13 @@ async function handleApproveBid(request, response) {
               </p>
             </div>
           `,
-          TextBody: `Hi,\n\nGreat news! Your bid of $${order.amount.toFixed(2)} for ${order.productName} has been approved.\n\nComplete secure payment via Stripe: ${session.url}\n\nThank you for bidding with us!`
+          text: `Hi,\n\nGreat news! Your bid of $${order.amount.toFixed(2)} for ${order.productName} has been approved.\n\nComplete secure payment via Stripe: ${session.url}\n\nThank you for bidding with us!`
         })
-        console.log(`Bid approval checkout email successfully sent to ${order.buyerEmail}`)
       } catch (err) {
-        console.error(`Failed to send bid approval checkout email to ${order.buyerEmail}:`, err)
+        console.error(`Failed to queue bid approval checkout email to ${order.buyerEmail}:`, err)
       }
     }
-    sendInvoiceEmail()
+    await sendInvoiceEmail()
   }
 
   sendJson(response, 200, {
@@ -768,7 +771,7 @@ const routes = {
   'POST /api/admin/bids/approve': handleApproveBid,
 }
 
-export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY', 'POSTMARK_SERVER_TOKEN'] }, async (request, response) => {
+export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY'] }, async (request, response) => {
   applyCors(request, response)
 
   if (request.method === 'OPTIONS') {
@@ -794,7 +797,6 @@ export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY', 'POSTMARK_SERVER_T
 export const onUserCreated = onDocumentCreated(
   {
     document: 'users/{uid}',
-    secrets: ['POSTMARK_SERVER_TOKEN'],
   },
   async (event) => {
     const data = event.data?.data()
@@ -807,9 +809,6 @@ export const onUserCreated = onDocumentCreated(
       console.log('User has no email address. Skipping welcome email.')
       return
     }
-
-    const client = getPostmark()
-    const from = getFromEmail()
 
     const htmlBody = `
       <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
@@ -832,17 +831,15 @@ export const onUserCreated = onDocumentCreated(
     `
 
     try {
-      await client.sendEmail({
-        From: from,
-        To: email,
-        Subject: 'Welcome to StockRoom NJ!',
-        HtmlBody: htmlBody,
-        TextBody: `Hi ${name},\n\nWelcome to StockRoom NJ! Thank you for creating an account with us. You can now place bids and check out faster.\n\nExplore the Shop: https://stockroomnj.com/shop`
+      await enqueueEmail({
+        to: email,
+        subject: 'Welcome to StockRoom NJ!',
+        category: 'welcome',
+        html: htmlBody,
+        text: `Hi ${name},\n\nWelcome to StockRoom NJ! Thank you for creating an account with us. You can now place bids and check out faster.\n\nExplore the Shop: https://stockroomnj.com/shop`
       })
-      console.log(`Welcome email successfully sent to ${email}`)
     } catch (err) {
-      console.error(`Failed to send welcome email to ${email}:`, err)
+      console.error(`Failed to queue welcome email to ${email}:`, err)
     }
   }
 )
-
