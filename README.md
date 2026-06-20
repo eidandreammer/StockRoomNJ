@@ -28,39 +28,47 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
 > [!NOTE]
 > TOTP Multi-Factor Authentication (MFA) is bypassed in local emulator mode. The Firebase Auth Emulator does not support TOTP secret generation, so the admin dashboard allows approved admin users in `admins/{uid}` to access the dashboard directly without MFA enrollment or verification during local emulator development. Production behavior remains secure and unchanged.
 
-## Firebase Setup
+## Firebase & Postmark Setup
 
 1. Create a Firebase project and register a web app.
 2. Enable Firestore, Firebase Storage, and Email/Password authentication.
-3. Install the Firebase Extension **Trigger Email from Firestore** and configure it to
-   watch the `mail` collection, or the collection named by `FIREBASE_EMAIL_COLLECTION`.
-   Configure SMTP provider credentials in the Firebase Extensions setup, not in this
-   app's Cloud Functions code.
-4. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
-5. Create each staff account in Firebase Console under Authentication.
-6. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
+3. Set up a Postmark account and configure your sending signatures and custom sending domain.
+4. **Postmark DNS Checklist**:
+   - **SPF**: Add `v=spf1 a mx include:spf.mtasv.net ~all` or merge `include:spf.mtasv.net` into your existing SPF record.
+   - **DKIM**: Add the DKIM TXT record provided by Postmark.
+   - **DMARC**: Configure a DMARC policy (e.g., `v=DMARC1; p=none; rua=mailto:dmarc-reports@yourdomain.com`).
+   - **Custom Sending Domain**: Verify DKIM and Return-Path settings in your DNS zone (e.g. Cloudflare) to optimize deliverability.
+5. **Firebase Secrets Configuration**:
+   Before deploying your functions, you must configure Postmark credentials as Firebase Secrets:
+   ```bash
+   firebase functions:secrets:set POSTMARK_SERVER_TOKEN="your-postmark-server-token"
+   firebase functions:secrets:set EMAIL_FROM="your-verified-sender@domain.com"
+   firebase functions:secrets:set EMAIL_REPLY_TO="your-reply-to@domain.com"
+   ```
+6. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
+7. Create each staff account in Firebase Console under Authentication.
+8. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
    may contain `{ "enabled": true }`; authorization is based on the document existing.
-7. Run `firebase login`, select the project with `firebase use --add`, and deploy the
+9. Run `firebase login`, select the project with `firebase use --add`, and deploy the
    checked-in Firestore and Storage rules with `npm run deploy:rules`.
 
-Cloud Functions queue transactional email by writing documents to Firestore with this
-shape:
+### Email System & Audit Logs
 
-```js
-{
-  to: ['customer@example.com'],
-  message: {
-    subject: 'Subject here',
-    html: '<p>HTML email body</p>',
-    text: 'Plaintext fallback here',
-  },
-}
-```
+Cloud Functions send transactional and security emails directly via the Postmark API.
+An `email_logs` Firestore collection keeps track of all outbound messages for auditing:
+- **recipient**: List of recipient emails.
+- **subject**: Subject line.
+- **category**: Category of email (`account`, `security`, `bidding`, `checkout`, `orders`, `shipping`).
+- **provider**: Set to `'postmark'`.
+- **providerMessageId**: Unique ID returned by Postmark.
+- **status**: `'sent'`, `'failed'`, or `'skipped'` (e.g. if the user opted out of optional updates).
+- **errorMessage**: Error message details when `status` is `'failed'`.
+- **createdAt** / **sentAt**: Timestamps.
+- **related IDs**: `userId`, `orderId`, `bidId`, `productId` when available.
 
-In emulator/local development, queued messages should appear as documents in the `mail`
-collection. Actual delivery depends on the Trigger Email from Firestore extension and
-SMTP credentials being installed and configured for the Firebase environment you are
-using.
+### Local Emulator Behavior
+
+When running the local Firebase emulator (with `npm run emulators`), the email pipeline runs in a sandbox mode if `POSTMARK_SERVER_TOKEN` is not set. It will print the email structure (Subject, Recipient, Body, Category) directly to the terminal console and write mock logs to the `email_logs` collection with `providerMessageId: "mock-postmark-id-..."`. This prevents functions from crashing in local development when credentials are not configured.
 
 Public visitors can read only published products and published events. Approved staff can
 manage inventory and events after signing in through `/admin`. New grouped products

@@ -1,70 +1,13 @@
 import crypto from 'node:crypto'
 import admin from 'firebase-admin'
 import { onRequest } from 'firebase-functions/v2/https'
-import { onDocumentCreated } from 'firebase-functions/v2/firestore'
+import { onDocumentCreated, onDocumentDeleted } from 'firebase-functions/v2/firestore'
 import Stripe from 'stripe'
+import { sendEmail } from './email/index.js'
 
 admin.initializeApp()
 
 const db = admin.firestore()
-const mailCollection = process.env.FIREBASE_EMAIL_COLLECTION || 'mail'
-const defaultFromEmail = process.env.FIREBASE_EMAIL_FROM || 'thestockroomnj@gmail.com'
-
-async function enqueueEmail({ to, subject, html, text, category, headers = {} }) {
-  const normalizedTo = Array.isArray(to) ? to : [to]
-  const recipients = normalizedTo
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
-
-  if (recipients.length === 0) {
-    console.log(`Skipping email "${subject}" because no recipient was provided.`)
-    return null
-  }
-
-  const payload = {
-    to: recipients,
-    message: {
-      subject,
-      html,
-      text,
-    },
-    headers: {
-      ...headers,
-    },
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    status: 'queued',
-  }
-
-  if (defaultFromEmail) {
-    payload.from = defaultFromEmail
-  }
-
-  if (category) {
-    payload.category = category
-  }
-
-  const docRef = await db.collection(mailCollection).add(payload)
-  console.log(`Queued email "${subject}" to ${recipients.join(', ')} as ${mailCollection}/${docRef.id}`)
-  return docRef.id
-}
-
-async function shouldSendEmail(userId, preferenceKey) {
-  if (!userId || userId.startsWith('guest:')) {
-    return true // Default to true for guest actions
-  }
-  try {
-    const userSnap = await db.collection('users').doc(userId).get()
-    if (userSnap.exists) {
-      const data = userSnap.data()
-      if (data.notifications && data.notifications[preferenceKey] !== undefined) {
-        return Boolean(data.notifications[preferenceKey])
-      }
-    }
-  } catch (err) {
-    console.error(`Error checking notification preferences for ${userId}:`, err)
-  }
-  return true // Default to true if user document not found or error
-}
 
 let stripeInstance = null
 function getStripe() {
@@ -438,33 +381,15 @@ async function handlePlaceBid(request, response) {
   // 1. Send bid confirmation email to current bidder
   const sendBidEmail = async () => {
     try {
-      const sendAllowed = await shouldSendEmail(userId, 'biddingUpdates')
-      if (!sendAllowed) {
-        console.log(`User ${userId} opted out of bidding emails. Skipping bid confirmation.`)
-        return
-      }
-      await enqueueEmail({
+      await sendEmail({
         to: buyerEmail,
-        subject: `Bid Received: ${productName}`,
-        category: 'bid_confirmation',
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
-            <h2 style="color: #002366; border-bottom: 2px solid #002366; padding-bottom: 10px;">Bid Received</h2>
-            <p>Hi there,</p>
-            <p>We've received your bid of <strong>$${bidRecord.amount.toFixed(2)}</strong> for <strong>${productName}</strong>.</p>
-            <p>Your bid is currently pending admin approval. We will notify you immediately once it is approved or if you are outbid.</p>
-            <p style="margin-top: 24px;">
-              <a href="https://stockroomnj.com/shop" style="background-color: #8a8d91; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">View Auction Page</a>
-            </p>
-            <p style="color: #6b7280; font-size: 0.8rem; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 15px;">
-              The Stock Room. Wallington, NJ.
-            </p>
-          </div>
-        `,
-        text: `Hi there,\n\nWe've received your bid of $${bidRecord.amount.toFixed(2)} for ${productName}. It is currently pending admin approval.\n\nView Auction Page: https://stockroomnj.com/shop`
+        category: 'bidding',
+        templateName: 'bid_received',
+        data: { productName, amount: bidRecord.amount },
+        metadata: { userId, bidId: bidRef.id, productId: bidRecord.productId }
       })
     } catch (err) {
-      console.error(`Failed to queue bid confirmation email to ${buyerEmail}:`, err)
+      console.error(`Failed to send bid confirmation email to ${buyerEmail}:`, err)
     }
   }
   await sendBidEmail()
@@ -479,36 +404,17 @@ async function handlePlaceBid(request, response) {
         const currentEmail = buyerEmail.trim().toLowerCase()
 
         if (previousEmail && previousEmail.toLowerCase() !== currentEmail) {
-          const sendAllowed = await shouldSendEmail(prevBid.userId, 'biddingUpdates')
-          if (!sendAllowed) {
-            console.log(`User ${prevBid.userId} opted out of bidding emails. Skipping outbid alert.`)
-          } else {
-            await enqueueEmail({
-              to: previousEmail,
-              subject: `You've been outbid! ${productName}`,
-              category: 'outbid_notification',
-              html: `
-                <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
-                  <h2 style="color: #f04438; border-bottom: 2px solid #f04438; padding-bottom: 10px;">You've Been Outbid</h2>
-                  <p>Hi,</p>
-                  <p>Another bidder placed a higher bid on <strong>${productName}</strong>.</p>
-                  <p>The new current bid is now <strong>$${bidRecord.amount.toFixed(2)}</strong>.</p>
-                  <p>Don't miss out on this item! Head back to the shop to increase your bid and stay in the running.</p>
-                  <p style="margin-top: 24px;">
-                    <a href="https://stockroomnj.com/shop" style="background-color: #002366; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Bid Again Now</a>
-                  </p>
-                  <p style="color: #6b7280; font-size: 0.8rem; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 15px;">
-                    The Stock Room. Wallington, NJ.
-                  </p>
-                </div>
-              `,
-              text: `Hi,\n\nYou've been outbid on ${productName}. The new current bid is $${bidRecord.amount.toFixed(2)}.\n\nBid Again: https://stockroomnj.com/shop`
-            })
-          }
+          await sendEmail({
+            to: previousEmail,
+            category: 'bidding',
+            templateName: 'outbid',
+            data: { productName, currentBidAmount: bidRecord.amount },
+            metadata: { userId: prevBid.userId, bidId: previousBidId, productId: bidRecord.productId }
+          })
         }
       }
     } catch (err) {
-      console.error('Failed to queue outbid email:', err)
+      console.error('Failed to send outbid email:', err)
     }
   }
 
@@ -704,6 +610,7 @@ async function handleApproveBid(request, response) {
       productName: bid.productName,
       status: 'approved_awaiting_payment',
       userId: bid.userId,
+      approvalEmailSent: false,
     }
 
     transaction.set(orderRef, order)
@@ -750,37 +657,23 @@ async function handleApproveBid(request, response) {
     // Send email to bidder containing the Stripe invoice checkout link
     const sendInvoiceEmail = async () => {
       try {
-        const sendAllowed = await shouldSendEmail(order.userId, 'biddingUpdates')
-        if (!sendAllowed) {
-          console.log(`User ${order.userId} opted out of bidding emails. Skipping approval invoice.`)
+        const orderSnap = await orderRef.get()
+        if (orderSnap.exists && orderSnap.data().approvalEmailSent) {
+          console.log(`Approval checkout email already sent for order ${orderRef.id}. Skipping.`)
           return
         }
-        await enqueueEmail({
+
+        await sendEmail({
           to: order.buyerEmail,
-          subject: `Congratulations! Your bid was approved for ${order.productName}`,
-          category: 'bid_approval_checkout',
-          html: `
-            <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
-              <h2 style="color: #002366; border-bottom: 2px solid #002366; padding-bottom: 10px;">Congratulations! You Won</h2>
-              <p>Hi there,</p>
-              <p>Great news! The administrator has approved your winning bid of <strong>$${order.amount.toFixed(2)}</strong> for <strong>${order.productName}</strong>.</p>
-              <p>To finalize your purchase and pay for this item, please complete your secure payment via Stripe using the button below:</p>
-              <p style="margin-top: 24px; text-align: center;">
-                <a href="${session.url}" style="background-color: #12b76a; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 1.05rem;">Complete Payment via Stripe</a>
-              </p>
-              <p style="font-size: 0.82rem; color: #6b7280; margin-top: 15px; text-align: center;">
-                Or copy/paste this URL into your browser: <br/>
-                <a href="${session.url}" style="color: #0057ff; word-break: break-all;">${session.url}</a>
-              </p>
-              <p style="color: #6b7280; font-size: 0.8rem; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 15px;">
-                The Stock Room. Wallington, NJ.
-              </p>
-            </div>
-          `,
-          text: `Hi,\n\nGreat news! Your bid of $${order.amount.toFixed(2)} for ${order.productName} has been approved.\n\nComplete secure payment via Stripe: ${session.url}\n\nThank you for bidding with us!`
+          category: 'checkout',
+          templateName: 'bid_approved_checkout',
+          data: { productName: order.productName, amount: order.amount, checkoutUrl: session.url },
+          metadata: { userId: order.userId, orderId: orderRef.id, bidId }
         })
+
+        await orderRef.update({ approvalEmailSent: true })
       } catch (err) {
-        console.error(`Failed to queue bid approval checkout email to ${order.buyerEmail}:`, err)
+        console.error(`Failed to send bid approval checkout email to ${order.buyerEmail}:`, err)
       }
     }
     await sendInvoiceEmail()
@@ -795,76 +688,75 @@ async function handleApproveBid(request, response) {
   })
 }
 
-async function sendOrderConfirmationEmail(orderData) {
-  const email = orderData.buyerEmail
-  if (!email) return
+async function handleUpdateShipping(request, response) {
+  const adminUser = await assertAdmin(request)
+  const payload = body(request)
+  
+  const orderId = requiredString(payload, 'order_id')
+  const shippingMethod = requiredString(payload, 'shipping_method') // 'shipping' or 'pickup'
+  const carrier = payload.carrier || ''
+  const trackingNumber = payload.tracking_number || ''
+  const pickupInstructions = payload.pickup_instructions || ''
 
-  const subject = `Order Confirmed: ${orderData.productName || 'Your Purchase'}`
-  let itemsHtml = ''
-  if (orderData.items && Array.isArray(orderData.items)) {
-    itemsHtml = orderData.items.map((item) => `
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">${item.productName}</td>
-        <td style="padding: 8px 0; text-align: right; border-bottom: 1px solid #f3f4f6;">$${Number(item.amount).toFixed(2)}</td>
-      </tr>
-    `).join('')
-  } else if (orderData.productId) {
-    itemsHtml = `
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">${orderData.productName}</td>
-        <td style="padding: 8px 0; text-align: right; border-bottom: 1px solid #f3f4f6;">$${Number(orderData.amount).toFixed(2)}</td>
-      </tr>
-    `
+  if (shippingMethod !== 'shipping' && shippingMethod !== 'pickup') {
+    throw new Error("shipping_method must be either 'shipping' or 'pickup'.")
   }
 
-  const html = `
-    <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
-      <h2 style="color: #12b76a; border-bottom: 2px solid #12b76a; padding-bottom: 10px;">Order Confirmed!</h2>
-      <p>Hi there,</p>
-      <p>Thank you for your purchase! We've received your payment and your order is now confirmed.</p>
-      
-      <h3 style="color: #002366; margin-top: 24px;">Order Summary</h3>
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr style="color: #6b7280; font-size: 0.85rem; border-bottom: 1px solid #e5e7eb;">
-            <th style="text-align: left; padding-bottom: 8px;">Item</th>
-            <th style="text-align: right; padding-bottom: 8px;">Price</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHtml}
-          <tr>
-            <td style="padding: 12px 0 0 0; font-weight: bold;">Total Paid</td>
-            <td style="padding: 12px 0 0 0; text-align: right; font-weight: bold; font-size: 1.1rem; color: #12b76a;">$${Number(orderData.amount).toFixed(2)}</td>
-          </tr>
-        </tbody>
-      </table>
+  const orderRef = db.collection('orders').doc(orderId)
+  const orderSnap = await orderRef.get()
 
-      <p style="margin-top: 30px;">
-        We will follow up shortly with updates on pickup/shipping instructions.
-      </p>
-      <p style="color: #6b7280; font-size: 0.8rem; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 15px;">
-        The Stock Room. Wallington, NJ.
-      </p>
-    </div>
-  `
+  if (!orderSnap.exists) {
+    throw new Error(`Order ${orderId} does not exist.`)
+  }
 
-  const text = `Thank you for your purchase! We've confirmed payment for your order of $${Number(orderData.amount).toFixed(2)}.\n\nWe will follow up shortly with updates on pickup/shipping instructions.\n\nThank you for shopping with us!`
+  const orderData = orderSnap.data()
+  if (orderData.status !== 'paid') {
+    throw new Error(`Order ${orderId} is not paid. Current status: ${orderData.status}`)
+  }
 
+  // Update order document
+  const updateData = {
+    shippingMethod,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    shippingUpdatedBy: adminUser.uid,
+  }
+
+  if (shippingMethod === 'shipping') {
+    updateData.carrier = carrier
+    updateData.trackingNumber = trackingNumber
+    updateData.shippingStatus = 'shipped'
+  } else {
+    updateData.pickupInstructions = pickupInstructions
+    updateData.shippingStatus = 'ready_for_pickup'
+  }
+
+  await orderRef.update(updateData)
+
+  // Send update email safely
   try {
-    const sendAllowed = await shouldSendEmail(orderData.userId, 'biddingUpdates')
-    if (sendAllowed) {
-      await enqueueEmail({
-        to: email,
-        subject,
-        category: 'order_confirmation',
-        html,
-        text,
-      })
-    }
+    await sendEmail({
+      to: orderData.buyerEmail,
+      category: 'shipping',
+      templateName: 'shipping_or_pickup',
+      data: {
+        orderId,
+        productName: orderData.productName || 'Your Item',
+        shippingMethod,
+        carrier,
+        trackingNumber,
+        pickupInstructions,
+      },
+      metadata: {
+        userId: orderData.userId,
+        orderId,
+        productId: orderData.productId || null,
+      }
+    })
   } catch (err) {
-    console.error('Failed to queue order confirmation email:', err)
+    console.error(`Failed to send shipping/pickup update email for order ${orderId}:`, err)
   }
+
+  sendJson(response, 200, { success: true, orderId })
 }
 
 async function finalizeOrderPayment(orderId, paymentIntentId) {
@@ -872,7 +764,7 @@ async function finalizeOrderPayment(orderId, paymentIntentId) {
   const orderRef = db.collection('orders').doc(orderId)
 
   let orderData = null
-  let isAlreadyPaid = false
+  let shouldSendEmail = false
 
   await db.runTransaction(async (transaction) => {
     const orderSnap = await transaction.get(orderRef)
@@ -882,13 +774,22 @@ async function finalizeOrderPayment(orderId, paymentIntentId) {
     }
 
     orderData = orderSnap.data()
+    
+    // Check if paid and email was already sent
     if (orderData.status === 'paid') {
-      isAlreadyPaid = true
+      if (!orderData.confirmationEmailSent) {
+        shouldSendEmail = true
+        transaction.update(orderRef, {
+          confirmationEmailSent: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      }
       return
     }
 
     transaction.update(orderRef, {
       status: 'paid',
+      confirmationEmailSent: true,
       paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
       stripePaymentIntentId: paymentIntentId || orderData.stripePaymentIntentId || '',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -922,13 +823,33 @@ async function finalizeOrderPayment(orderId, paymentIntentId) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
     }
+    shouldSendEmail = true
   })
 
-  if (orderData && !isAlreadyPaid) {
-    await sendOrderConfirmationEmail({
-      ...orderData,
-      status: 'paid',
-    })
+  // Send confirmation email safely
+  if (shouldSendEmail && orderData) {
+    try {
+      const itemsList = orderData.items || []
+      await sendEmail({
+        to: orderData.buyerEmail,
+        category: 'orders',
+        templateName: 'order_confirmed',
+        data: {
+          productName: orderData.productName,
+          amount: orderData.amount,
+          items: itemsList,
+        },
+        metadata: {
+          userId: orderData.userId,
+          orderId,
+          productId: orderData.productId || null,
+          bidId: orderData.bidId || null,
+        }
+      })
+    } catch (err) {
+      console.error(`[Webhook] Order payment finalized but confirmation email failed for order ${orderId}:`, err)
+      // Suppress error so payment finalization is not aborted
+    }
   }
 }
 
@@ -1052,9 +973,12 @@ const routes = {
   'POST /api/checkout/create-session': handleCreateCheckoutSession,
   'POST /api/admin/bids/approve': handleApproveBid,
   'POST /api/stripe/webhook': handleStripeWebhook,
+  'POST /api/admin/orders/update-shipping': handleUpdateShipping,
 }
 
-export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] }, async (request, response) => {
+export const api = onRequest({
+  secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'POSTMARK_SERVER_TOKEN', 'EMAIL_FROM', 'EMAIL_REPLY_TO']
+}, async (request, response) => {
   applyCors(request, response)
 
   if (request.method === 'OPTIONS') {
@@ -1080,10 +1004,12 @@ export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SE
 export const onUserCreated = onDocumentCreated(
   {
     document: 'users/{uid}',
+    secrets: ['POSTMARK_SERVER_TOKEN', 'EMAIL_FROM', 'EMAIL_REPLY_TO'],
   },
   async (event) => {
     const data = event.data?.data()
     if (!data) return
+    const uid = event.params.uid
 
     const email = data.email || ''
     const name = data.displayName || 'Collector'
@@ -1093,36 +1019,48 @@ export const onUserCreated = onDocumentCreated(
       return
     }
 
-    const htmlBody = `
-      <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
-        <h2 style="color: #002366; border-bottom: 2px solid #002366; padding-bottom: 10px;">Welcome to StockRoom NJ!</h2>
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Thank you for creating an account with The Stock Room! Your collection registry, addresses, and email settings are now active.</p>
-        <p>With your new account, you can:</p>
-        <ul>
-          <li>Place secure bids on our rare collectible auctions.</li>
-          <li>Store shipping and billing info for faster, seamless checkouts.</li>
-          <li>Keep track of pop-up drops, local tournaments, and events.</li>
-        </ul>
-        <p style="margin-top: 24px;">
-          <a href="https://stockroomnj.com/shop" style="background-color: #0057ff; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Explore the Shop</a>
-        </p>
-        <p style="color: #6b7280; font-size: 0.8rem; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 15px;">
-          The Stock Room. Wallington, NJ.
-        </p>
-      </div>
-    `
-
     try {
-      await enqueueEmail({
+      await sendEmail({
         to: email,
-        subject: 'Welcome to StockRoom NJ!',
-        category: 'welcome',
-        html: htmlBody,
-        text: `Hi ${name},\n\nWelcome to StockRoom NJ! Thank you for creating an account with us. You can now place bids and check out faster.\n\nExplore the Shop: https://stockroomnj.com/shop`
+        category: 'account',
+        templateName: 'welcome',
+        data: { name },
+        metadata: { userId: uid }
       })
     } catch (err) {
-      console.error(`Failed to queue welcome email to ${email}:`, err)
+      console.error(`Failed to send welcome email to ${email}:`, err)
+    }
+  }
+)
+
+export const onUserDeleted = onDocumentDeleted(
+  {
+    document: 'users/{uid}',
+    secrets: ['POSTMARK_SERVER_TOKEN', 'EMAIL_FROM', 'EMAIL_REPLY_TO'],
+  },
+  async (event) => {
+    const data = event.data?.before.data()
+    if (!data) return
+    const uid = event.params.uid
+
+    const email = data.email || ''
+    const name = data.displayName || 'Collector'
+
+    if (!email) {
+      console.log('Deleted user has no email address. Skipping account deleted email.')
+      return
+    }
+
+    try {
+      await sendEmail({
+        to: email,
+        category: 'account',
+        templateName: 'account_deleted',
+        data: { name },
+        metadata: { userId: uid }
+      })
+    } catch (err) {
+      console.error(`Failed to send account deleted email to ${email}:`, err)
     }
   }
 )
