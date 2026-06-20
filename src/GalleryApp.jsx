@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AddToCartButton from './AddToCartButton'
 import ProductDetailModal from './ProductDetailModal'
 import QuickBid from './QuickBid'
@@ -117,13 +117,22 @@ function GalleryApp() {
     return () => window.clearTimeout(debounceTimer)
   }, [query])
 
-  const closeBanner = () => {
+  const closeBanner = useCallback(() => {
     setIsLeaving(true)
     window.setTimeout(() => {
       setCheckoutBanner(null)
       setIsLeaving(false)
-    }, 250)
-  }
+    }, 300)
+  }, [])
+
+  useEffect(() => {
+    if (checkoutBanner === 'success') {
+      const timer = window.setTimeout(() => {
+        closeBanner()
+      }, 5000) // Auto-dismiss after 5 seconds
+      return () => window.clearTimeout(timer)
+    }
+  }, [checkoutBanner, closeBanner])
 
   useEffect(() => {
     const filterPanel = filterPanelRef.current
@@ -299,7 +308,7 @@ function GalleryApp() {
             onClick={closeBanner}
             aria-label="Dismiss banner"
           >
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

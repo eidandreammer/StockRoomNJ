@@ -342,8 +342,8 @@ function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
       <div className="admin-product-details">
         <div className="admin-product-banners">
           <span className={`admin-status is-${product.status}`}>{product.status}</span>
-          <span className={`admin-sale-banner is-${product.saleMode === 'auction' ? 'bidding' : 'buying'}`}>
-            {product.saleMode === 'auction' ? 'Bidding' : 'Buying'}
+          <span className={`admin-sale-banner is-${product.status === 'sold' ? 'bought' : (product.saleMode === 'auction' ? 'bidding' : 'buying')}`}>
+            {product.status === 'sold' ? 'Bought' : (product.saleMode === 'auction' ? 'Bidding' : 'Buying')}
           </span>
         </div>
         <h3>{product.name}</h3>
@@ -360,8 +360,13 @@ function ProductListItem({ onDelete, onEdit, onToggleStatus, product }) {
         <button className="admin-text-button" type="button" onClick={() => onEdit(product)}>
           Edit
         </button>
-        <button className="admin-text-button" type="button" onClick={() => onToggleStatus(product)}>
-          {product.status === 'published' ? 'Unpublish' : 'Publish'}
+        <button
+          className="admin-text-button"
+          disabled={product.status === 'sold'}
+          type="button"
+          onClick={() => onToggleStatus(product)}
+        >
+          {product.status === 'sold' ? 'Sold' : (product.status === 'published' ? 'Unpublish' : 'Publish')}
         </button>
         <button className="admin-text-button is-danger" type="button" onClick={() => onDelete(product)}>
           Delete
@@ -597,6 +602,9 @@ function AdminProducts({ user }) {
   }
 
   const toggleProductStatus = async (product) => {
+    if (product.status === 'sold') {
+      return
+    }
     await updateDoc(doc(db, 'products', product.id), {
       status: product.status === 'published' ? 'draft' : 'published',
       updatedAt: serverTimestamp(),
@@ -657,7 +665,7 @@ function AdminProducts({ user }) {
       )}
 
       <div className="admin-filters" aria-label="Filter products">
-        {['all', 'draft', 'published'].map((option) => (
+        {['all', 'draft', 'published', 'sold'].map((option) => (
           <button
             className={filter === option ? 'is-active' : ''}
             key={option}

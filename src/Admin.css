@@ -795,6 +795,12 @@
   color: #175cd3;
 }
 
+.admin-sale-banner.is-bought {
+  border-color: #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+
 .admin-product-details h3 {
   margin: 7px 0 0;
   overflow-wrap: anywhere;
@@ -965,6 +971,11 @@
 .admin-status.is-draft {
   background: #f2f4f7;
   color: #475467;
+}
+
+.admin-status.is-sold {
+  background: #fef3f2;
+  color: #b42318;
 }
 
 .occurrence-editor {
