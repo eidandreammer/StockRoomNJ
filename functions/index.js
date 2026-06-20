@@ -305,6 +305,10 @@ async function handleAgree(request, response) {
     const existing = await transaction.get(agreementRef)
 
     if (existing.exists) {
+      transaction.update(agreementRef, {
+        agreed_at: now,
+        ip_address: requestIp(request),
+      })
       return
     }
 
@@ -528,7 +532,7 @@ async function createCheckoutSession({ agreementIds, buyerEmail, items, metadata
     .filter(Boolean)
 
   const sessionPayload = {
-    cancel_url: process.env.STRIPE_CANCEL_URL || 'https://stockroomnj.com/shop',
+    cancel_url: process.env.STRIPE_CANCEL_URL || 'https://stockroomnj.com/shop?checkout=cancel',
     customer_email: buyerEmail,
     line_items: items,
     metadata: {
@@ -626,15 +630,45 @@ async function handleCreateCheckoutSession(request, response) {
     })
   }
 
+  const orderRef = db.collection('orders').doc()
+  const orderData = {
+    amount: dollars(lineItems.reduce((sum, item) => sum + item.price_data.unit_amount * item.quantity, 0)),
+    buyerEmail,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    status: 'pending_payment',
+    userId,
+    checkoutMode,
+    items: cartItems.map((item, idx) => ({
+      productId: item.product_id,
+      productName: lineItems[idx].price_data.product_data.name,
+      amount: dollars(lineItems[idx].price_data.unit_amount),
+    })),
+  }
+
+  if (lineItems.length > 0) {
+    orderData.productId = cartItems[0].product_id
+    orderData.productName = lineItems[0].price_data.product_data.name
+  }
+
+  await orderRef.set(orderData)
+
   const session = await createCheckoutSession({
     agreementIds,
     buyerEmail,
     items: lineItems,
     metadata: {
       checkout_mode: checkoutMode,
+      order_id: orderRef.id,
       user_id: userId,
     },
   })
+
+  if (session.id) {
+    await orderRef.update({
+      stripeCheckoutSessionId: session.id,
+      stripeCheckoutUrl: session.url,
+    })
+  }
 
   sendJson(response, 200, { id: session.id, url: session.url, warning: session.warning })
 }
@@ -761,6 +795,254 @@ async function handleApproveBid(request, response) {
   })
 }
 
+async function sendOrderConfirmationEmail(orderData) {
+  const email = orderData.buyerEmail
+  if (!email) return
+
+  const subject = `Order Confirmed: ${orderData.productName || 'Your Purchase'}`
+  let itemsHtml = ''
+  if (orderData.items && Array.isArray(orderData.items)) {
+    itemsHtml = orderData.items.map((item) => `
+      <tr>
+        <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">${item.productName}</td>
+        <td style="padding: 8px 0; text-align: right; border-bottom: 1px solid #f3f4f6;">$${Number(item.amount).toFixed(2)}</td>
+      </tr>
+    `).join('')
+  } else if (orderData.productId) {
+    itemsHtml = `
+      <tr>
+        <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">${orderData.productName}</td>
+        <td style="padding: 8px 0; text-align: right; border-bottom: 1px solid #f3f4f6;">$${Number(orderData.amount).toFixed(2)}</td>
+      </tr>
+    `
+  }
+
+  const html = `
+    <div style="font-family: sans-serif; padding: 20px; color: #111111; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <h2 style="color: #12b76a; border-bottom: 2px solid #12b76a; padding-bottom: 10px;">Order Confirmed!</h2>
+      <p>Hi there,</p>
+      <p>Thank you for your purchase! We've received your payment and your order is now confirmed.</p>
+      
+      <h3 style="color: #002366; margin-top: 24px;">Order Summary</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="color: #6b7280; font-size: 0.85rem; border-bottom: 1px solid #e5e7eb;">
+            <th style="text-align: left; padding-bottom: 8px;">Item</th>
+            <th style="text-align: right; padding-bottom: 8px;">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+          <tr>
+            <td style="padding: 12px 0 0 0; font-weight: bold;">Total Paid</td>
+            <td style="padding: 12px 0 0 0; text-align: right; font-weight: bold; font-size: 1.1rem; color: #12b76a;">$${Number(orderData.amount).toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top: 30px;">
+        We will follow up shortly with updates on pickup/shipping instructions.
+      </p>
+      <p style="color: #6b7280; font-size: 0.8rem; margin-top: 30px; border-top: 1px solid #f3f4f6; padding-top: 15px;">
+        The Stock Room. Wallington, NJ.
+      </p>
+    </div>
+  `
+
+  const text = `Thank you for your purchase! We've confirmed payment for your order of $${Number(orderData.amount).toFixed(2)}.\n\nWe will follow up shortly with updates on pickup/shipping instructions.\n\nThank you for shopping with us!`
+
+  try {
+    const sendAllowed = await shouldSendEmail(orderData.userId, 'biddingUpdates')
+    if (sendAllowed) {
+      await enqueueEmail({
+        to: email,
+        subject,
+        category: 'order_confirmation',
+        html,
+        text,
+      })
+    }
+  } catch (err) {
+    console.error('Failed to queue order confirmation email:', err)
+  }
+}
+
+async function finalizeOrderPayment(orderId, paymentIntentId) {
+  if (!orderId) return
+  const orderRef = db.collection('orders').doc(orderId)
+
+  let orderData = null
+  let isAlreadyPaid = false
+
+  await db.runTransaction(async (transaction) => {
+    const orderSnap = await transaction.get(orderRef)
+    if (!orderSnap.exists) {
+      console.log(`Order ${orderId} does not exist for finalization.`)
+      return
+    }
+
+    orderData = orderSnap.data()
+    if (orderData.status === 'paid') {
+      isAlreadyPaid = true
+      return
+    }
+
+    transaction.update(orderRef, {
+      status: 'paid',
+      paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      stripePaymentIntentId: paymentIntentId || orderData.stripePaymentIntentId || '',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+
+    // Mark products as sold
+    if (orderData.items && Array.isArray(orderData.items)) {
+      for (const item of orderData.items) {
+        transaction.update(db.collection('products').doc(item.productId), {
+          status: 'sold',
+          soldAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      }
+    } else if (orderData.productId) {
+      const updatePayload = {
+        status: 'sold',
+        soldAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }
+      if (orderData.bidId) {
+        updatePayload.auctionStatus = 'closed'
+      }
+      transaction.update(db.collection('products').doc(orderData.productId), updatePayload)
+    }
+
+    if (orderData.bidId) {
+      transaction.update(db.collection('bids').doc(orderData.bidId), {
+        status: 'paid',
+        paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+    }
+  })
+
+  if (orderData && !isAlreadyPaid) {
+    await sendOrderConfirmationEmail({
+      ...orderData,
+      status: 'paid',
+    })
+  }
+}
+
+async function handleOrderPaymentFailed(orderId, isExpiration) {
+  if (!orderId) return
+  const orderRef = db.collection('orders').doc(orderId)
+
+  await db.runTransaction(async (transaction) => {
+    const orderSnap = await transaction.get(orderRef)
+    if (!orderSnap.exists) {
+      console.log(`Order ${orderId} does not exist for failure update.`)
+      return
+    }
+
+    const orderData = orderSnap.data()
+    if (orderData.status === 'paid') {
+      console.log(`Order ${orderId} is already paid. Cannot mark as failed/expired.`)
+      return
+    }
+
+    const newStatus = isExpiration ? 'expired' : 'failed'
+    transaction.update(orderRef, {
+      status: newStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+
+    // For auction orders, revert the product and bid status so they can be re-approved/re-bid
+    if (orderData.bidId) {
+      const bidRef = db.collection('bids').doc(orderData.bidId)
+      transaction.update(bidRef, {
+        status: 'pending_admin_approval',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      const productRef = db.collection('products').doc(orderData.productId)
+      transaction.update(productRef, {
+        auctionStatus: 'open',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+    }
+  })
+}
+
+async function handleStripeWebhook(request, response) {
+  const stripe = getStripe()
+  if (!stripe) {
+    sendJson(response, 500, { error: 'Stripe is not configured.' })
+    return
+  }
+
+  const sig = request.headers['stripe-signature']
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+
+  if (!sig || !webhookSecret) {
+    console.error('Missing stripe-signature or STRIPE_WEBHOOK_SECRET')
+    sendJson(response, 400, { error: 'Webhook signature verification failed.' })
+    return
+  }
+
+  let event
+  try {
+    event = stripe.webhooks.constructEvent(request.rawBody, sig, webhookSecret)
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message)
+    sendJson(response, 400, { error: `Webhook Error: ${err.message}` })
+    return
+  }
+
+  console.log(`Received Stripe webhook event: ${event.type}`)
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object
+        if (session.payment_status === 'paid') {
+          const orderId = session.metadata?.order_id
+          const paymentIntentId = typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id
+          await finalizeOrderPayment(orderId, paymentIntentId)
+        } else {
+          console.log(`Checkout session completed but payment_status is ${session.payment_status}`)
+        }
+        break
+      }
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object
+        const orderId = paymentIntent.metadata?.order_id
+        await finalizeOrderPayment(orderId, paymentIntent.id)
+        break
+      }
+      case 'checkout.session.expired': {
+        const session = event.data.object
+        const orderId = session.metadata?.order_id
+        await handleOrderPaymentFailed(orderId, true)
+        break
+      }
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object
+        const orderId = paymentIntent.metadata?.order_id
+        await handleOrderPaymentFailed(orderId, false)
+        break
+      }
+      default:
+        console.log(`Unhandled Stripe event type: ${event.type}`)
+    }
+
+    sendJson(response, 200, { received: true })
+  } catch (err) {
+    console.error(`Error processing webhook event ${event.type}:`, err)
+    sendJson(response, 500, { error: err.message || 'Error processing webhook event' })
+  }
+}
+
 const routes = {
   'GET /api/legal/active': handleActiveLegal,
   'GET /api/legal/check-consent': handleCheckConsent,
@@ -769,9 +1051,10 @@ const routes = {
   'POST /api/bids/place': handlePlaceBid,
   'POST /api/checkout/create-session': handleCreateCheckoutSession,
   'POST /api/admin/bids/approve': handleApproveBid,
+  'POST /api/stripe/webhook': handleStripeWebhook,
 }
 
-export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY'] }, async (request, response) => {
+export const api = onRequest({ secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] }, async (request, response) => {
   applyCors(request, response)
 
   if (request.method === 'OPTIONS') {

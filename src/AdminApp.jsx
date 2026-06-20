@@ -20,7 +20,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
-import { auth, db, isFirebaseConfigured } from './firebase'
+import { auth, db, isFirebaseConfigured, isUsingFirebaseEmulators } from './firebase'
 import AdminBids from './AdminBids'
 import AdminLegalDocuments from './AdminLegalDocuments'
 import AdminProducts from './AdminProducts'
@@ -121,6 +121,10 @@ function formatAuthError(error) {
 }
 
 function formatTotpSetupError(error) {
+  if (isUsingFirebaseEmulators && (error?.message?.includes('Missing phoneEnrollmentInfo') || error?.code === 'auth/invalid-argument')) {
+    return 'Two-step authentication (TOTP MFA) is not supported by the Firebase Auth Emulator. Bypassing is required for local development.'
+  }
+
   if (error?.code === 'auth/invalid-verification-code') {
     return 'That code is invalid or expired. Try the current code from your authenticator app.'
   }
@@ -640,6 +644,14 @@ function TotpEnrollment({ user, onComplete }) {
     let isActive = true
 
     async function prepareTotp() {
+      if (isUsingFirebaseEmulators) {
+        if (isActive) {
+          setError('Two-step authentication (TOTP MFA) is not supported by the Firebase Auth Emulator. Bypassing is required for local development.')
+          setStatus('error')
+        }
+        return
+      }
+
       setStatus('loading')
       setError('')
 
@@ -1059,7 +1071,7 @@ function AdminApp() {
           return
         }
 
-        setAuthState(hasTotpFactor(nextUser) ? 'authorized' : 'mfa-enrollment-required')
+        setAuthState((hasTotpFactor(nextUser) || isUsingFirebaseEmulators) ? 'authorized' : 'mfa-enrollment-required')
       } catch (error) {
         setAuthError(error.message)
         setAuthState('verification-error')
@@ -1223,6 +1235,11 @@ function AdminApp() {
       </header>
 
       <main className="admin-main">
+        {isUsingFirebaseEmulators && (
+          <p className="admin-alert is-warning">
+            Two-step authentication is skipped only while using the Firebase Auth Emulator because TOTP MFA is not supported reliably there.
+          </p>
+        )}
         {notice && <p className="admin-alert">{notice}</p>}
         {error && <p className="admin-alert is-error">{error}</p>}
 

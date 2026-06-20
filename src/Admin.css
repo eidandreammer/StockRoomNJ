@@ -868,6 +868,12 @@
   color: #912018;
 }
 
+.admin-alert.is-warning {
+  border-color: #d97706;
+  background: #fffbeb;
+  color: #b45309;
+}
+
 .admin-filters {
   display: flex;
   gap: 8px;

@@ -25,6 +25,9 @@ run `npm run emulators`, set
 Vite proxies `/api` requests to the local Functions emulator so checkout and legal
 agreement endpoints match the deployed Firebase Hosting rewrites.
 
+> [!NOTE]
+> TOTP Multi-Factor Authentication (MFA) is bypassed in local emulator mode. The Firebase Auth Emulator does not support TOTP secret generation, so the admin dashboard allows approved admin users in `admins/{uid}` to access the dashboard directly without MFA enrollment or verification during local emulator development. Production behavior remains secure and unchanged.
+
 ## Firebase Setup
 
 1. Create a Firebase project and register a web app.

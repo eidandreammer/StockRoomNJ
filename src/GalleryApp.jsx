@@ -86,7 +86,27 @@ function GalleryApp() {
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
   const [isSearchDocked, setIsSearchDocked] = useState(false)
+  const [checkoutBanner, setCheckoutBanner] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const checkoutParam = params.get('checkout')
+      if (checkoutParam === 'success' || checkoutParam === 'cancel') {
+        return checkoutParam
+      }
+    }
+    return null
+  })
+  const [isLeaving, setIsLeaving] = useState(false)
   const filterPanelRef = useRef(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('checkout')) {
+      const newUrl = new URL(window.location)
+      newUrl.searchParams.delete('checkout')
+      window.history.replaceState(null, '', newUrl.toString())
+    }
+  }, [])
 
   useEffect(() => {
     const debounceTimer = window.setTimeout(() => {
@@ -95,6 +115,14 @@ function GalleryApp() {
 
     return () => window.clearTimeout(debounceTimer)
   }, [query])
+
+  const closeBanner = () => {
+    setIsLeaving(true)
+    window.setTimeout(() => {
+      setCheckoutBanner(null)
+      setIsLeaving(false)
+    }, 250)
+  }
 
   useEffect(() => {
     const filterPanel = filterPanelRef.current
@@ -240,6 +268,42 @@ function GalleryApp() {
 
   return (
     <SiteShell currentPage="shop">
+      {checkoutBanner && (
+        <div
+          className={`checkout-status-banner is-${checkoutBanner}${isLeaving ? ' is-leaving' : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="checkout-status-icon">
+            {checkoutBanner === 'success' ? (
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </div>
+          <div className="checkout-status-text">
+            <h3>{checkoutBanner === 'success' ? 'Payment Accepted' : 'Payment Cancelled'}</h3>
+            <p>
+              {checkoutBanner === 'success'
+                ? 'Your order has been completed successfully. Thank you for your purchase!'
+                : 'The transaction was cancelled. No charges were made to your account.'}
+            </p>
+          </div>
+          <button
+            className="checkout-status-close"
+            onClick={closeBanner}
+            aria-label="Dismiss banner"
+          >
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
       <main className="product-gallery-page" id="main-content">
         <section className="gallery-intro" aria-labelledby="gallery-title">
           <div className="gallery-container">

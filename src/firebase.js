@@ -63,12 +63,13 @@ export const auth = app ? getAppAuth(app) : null
 export const db = app ? getFirestore(app) : null
 export const storage = app && firebaseConfig.storageBucket ? getStorage(app) : null
 
-if (
+export const isUsingFirebaseEmulators = !!(
   app &&
   import.meta.env.DEV &&
-  import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' &&
-  !globalThis.__stockRoomFirebaseEmulatorsConnected
-) {
+  import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
+)
+
+if (isUsingFirebaseEmulators && !globalThis.__stockRoomFirebaseEmulatorsConnected) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
   connectFirestoreEmulator(db, '127.0.0.1', 8080)
   if (storage) {
@@ -76,3 +77,4 @@ if (
   }
   globalThis.__stockRoomFirebaseEmulatorsConnected = true
 }
+

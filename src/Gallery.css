@@ -936,3 +936,133 @@
   }
 }
 
+/* ==========================================================================
+   Checkout Transaction Status Banner
+   ========================================================================== */
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.checkout-status-banner {
+  position: fixed;
+  top: calc(var(--page-header-offset, 122px) + 16px);
+  right: clamp(16px, 4vw, 40px);
+  z-index: 1000;
+  width: min(calc(100vw - 32px), 420px);
+  padding: 16px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  gap: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+  animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.checkout-status-banner.is-leaving {
+  animation: fadeOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.checkout-status-banner.is-success {
+  background: rgba(240, 253, 250, 0.9);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #065f46;
+}
+
+.checkout-status-banner.is-cancel {
+  background: rgba(254, 242, 242, 0.9);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #991b1b;
+}
+
+.checkout-status-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+}
+
+.checkout-status-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.checkout-status-banner.is-success .checkout-status-icon svg {
+  stroke: #108953;
+}
+
+.checkout-status-banner.is-cancel .checkout-status-icon svg {
+  stroke: #d94040;
+}
+
+.checkout-status-text {
+  flex-grow: 1;
+}
+
+.checkout-status-text h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: inherit;
+}
+
+.checkout-status-text p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  opacity: 0.9;
+  color: inherit;
+}
+
+.checkout-status-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 150ms ease, background-color 150ms ease;
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+}
+
+.checkout-status-close:hover,
+.checkout-status-close:focus-visible {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.checkout-status-close svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
