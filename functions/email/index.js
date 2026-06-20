@@ -99,7 +99,7 @@ export async function sendEmail({ to, category, templateName, data, metadata = {
   }
 
   const { subject, html, text } = templateGen(data);
-  const fromEmail = (process.env.EMAIL_FROM || process.env.FIREBASE_EMAIL_FROM || 'thestockroomnj@gmail.com').trim();
+  const fromEmail = (process.env.EMAIL_FROM || process.env.FIREBASE_EMAIL_FROM || 'support@stockroomnj.com').trim();
   const replyToEmail = (process.env.EMAIL_REPLY_TO || fromEmail).trim();
 
   const logPayload = {
