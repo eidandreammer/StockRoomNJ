@@ -1117,3 +1117,25 @@
     grid-column: auto;
   }
 }
+
+.admin-auth-card label.admin-checkbox-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: normal;
+  margin-top: 8px;
+  cursor: pointer;
+}
+.admin-auth-card label.admin-checkbox-row input {
+  margin: 0;
+  width: auto;
+  cursor: pointer;
+}
+.admin-auth-card label.admin-checkbox-row span {
+  font-weight: normal;
+  text-transform: none;
+  font-size: 0.88rem;
+  color: var(--color-text);
+}

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   getMultiFactorResolver,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut,
   TotpMultiFactorGenerator,
@@ -58,16 +60,44 @@ export default function AccountDrawer({ isOpen, onClose }) {
   const [status, setStatus] = useState('idle') // 'loading', 'saving', 'success', 'error'
   const [message, setMessage] = useState('')
   const [errorObject, setErrorObject] = useState(null)
+  const [rememberMfa, setRememberMfa] = useState(false)
 
   useEffect(() => {
     if (!auth) return
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser)
       if (currentUser) {
+        // Check MFA expiration if they have MFA enrolled
+        const hasTotp = currentUser.multiFactor?.enrolledFactors?.some(
+          (f) => f.factorId === TotpMultiFactorGenerator.FACTOR_ID
+        )
+        if (hasTotp) {
+          const isSessionVerified = sessionStorage.getItem('mfa_verified_session_' + currentUser.uid) === 'true'
+          const rememberMfaVal = localStorage.getItem('mfa_remember_' + currentUser.uid) === 'true'
+          const mfaVerifiedAt = parseInt(localStorage.getItem('mfa_verified_at_' + currentUser.uid) || '0', 10)
+          const isWithinThreeDays = (Date.now() - mfaVerifiedAt) < (3 * 24 * 60 * 60 * 1000)
+
+          if (!isSessionVerified && (!rememberMfaVal || !isWithinThreeDays)) {
+            try {
+              if (auth.currentUser) {
+                const uid = auth.currentUser.uid
+                localStorage.removeItem('mfa_remember_' + uid)
+                localStorage.removeItem('mfa_verified_at_' + uid)
+                sessionStorage.removeItem('mfa_verified_session_' + uid)
+              }
+              await signOut(auth)
+            } catch (e) {
+              console.error('Failed to sign out customer after MFA expired:', e)
+            }
+            return
+          }
+        }
+
+        setUser(currentUser)
         // Fetch user data from Firestore
         await loadUserData(currentUser.uid, currentUser.email)
       } else {
+        setUser(null)
         // Reset state
         resetInputs()
       }
@@ -163,6 +193,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
 
     try {
       if (authMode === 'signin') {
+        await setPersistence(auth, browserLocalPersistence)
         await signInWithEmailAndPassword(auth, emailInput.trim(), passwordInput)
         setStatus('idle')
       } else if (authMode === 'signup') {
@@ -256,7 +287,18 @@ export default function AccountDrawer({ isOpen, onClose }) {
 
     try {
       const assertion = TotpMultiFactorGenerator.assertionForSignIn(totpHint.uid, verificationCode)
-      await mfaResolver.resolveSignIn(assertion)
+      const userCredential = await mfaResolver.resolveSignIn(assertion)
+      const user = userCredential.user
+
+      if (rememberMfa) {
+        localStorage.setItem('mfa_remember_' + user.uid, 'true')
+        localStorage.setItem('mfa_verified_at_' + user.uid, Date.now().toString())
+      } else {
+        localStorage.removeItem('mfa_remember_' + user.uid)
+        localStorage.removeItem('mfa_verified_at_' + user.uid)
+      }
+      sessionStorage.setItem('mfa_verified_session_' + user.uid, 'true')
+
       setMfaResolver(null)
       setMfaCode('')
       setStatus('idle')
@@ -325,6 +367,12 @@ export default function AccountDrawer({ isOpen, onClose }) {
   const handleSignOut = async () => {
     setStatus('saving')
     try {
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid
+        localStorage.removeItem('mfa_remember_' + uid)
+        localStorage.removeItem('mfa_verified_at_' + uid)
+        sessionStorage.removeItem('mfa_verified_session_' + uid)
+      }
       await signOut(auth)
       resetInputs()
       onClose()
@@ -488,6 +536,20 @@ export default function AccountDrawer({ isOpen, onClose }) {
                         value={passwordInput}
                         onChange={(e) => setPasswordInput(e.target.value)}
                       />
+                    </label>
+                  )}
+
+                  {authMode === 'signin' && (
+                    <label className="checkbox-field-label" style={{ margin: '12px 0 8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={rememberMfa}
+                        onChange={(e) => setRememberMfa(e.target.checked)}
+                      />
+                      <div>
+                        <strong>Do not ask again for 3 days</strong>
+                        <span>Trust this device for two-step verification.</span>
+                      </div>
                     </label>
                   )}
 

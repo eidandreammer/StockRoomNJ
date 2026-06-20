@@ -97,7 +97,8 @@ drafts and must be published explicitly.
 - `npm run test:rules`: run Firestore security-rule tests through the Firestore emulator.
 - `npm run emulators`: start local Firebase Emulators (Auth, Firestore, Storage, Functions).
 - `npm run functions:lint`: lint Firebase Functions code.
-- `npm run migrate:legal`: run the migration script for legal documents database state.
+- `npm run migrate:legal`: run the migration script for legal documents database state (targets emulator if active).
+- `npm run deploy:legal`: robustly deploy active legal documents to the production Firestore database (automatically unsetting any emulator variables).
 - `npm run deploy`: build the Vite app and deploy to Firebase Hosting and Functions.
 - `npm run deploy:hosting`: build the Vite app and deploy only the static files to Firebase Hosting.
 - `npm run deploy:rules`: deploy Firestore and Storage security rules to Firebase.
@@ -163,6 +164,16 @@ To deploy security rules along with Hosting and Functions, run:
 ```bash
 npm run deploy:all
 ```
+
+### G. Deploy Legal Documents
+
+To publish or update the active legal documents (Terms of Service and Privacy Policy) in the production database:
+
+```bash
+npm run deploy:legal
+```
+
+This script automatically reads the default project from `.firebaserc`, temporarily bypasses the local emulator environment variables in your current terminal session, reads the markdown files from the `public/` directory, and registers them as the active documents in the production Firestore database.
 
 ---
 

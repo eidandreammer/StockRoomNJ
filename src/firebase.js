@@ -46,7 +46,15 @@ function getAppAuth(appInstance) {
     typeof window !== 'undefined' &&
     (window.location.pathname.includes('/admin') ||
       window.location.pathname.includes('admin.html'))
-  const selectedPersistence = isPageAdmin ? inMemoryPersistence : browserLocalPersistence
+
+  let selectedPersistence = browserLocalPersistence
+  if (isPageAdmin) {
+    const rememberAdmin =
+      typeof window !== 'undefined' &&
+      window.localStorage &&
+      window.localStorage.getItem('admin_mfa_remember') === 'true'
+    selectedPersistence = rememberAdmin ? browserLocalPersistence : inMemoryPersistence
+  }
 
   try {
     return initializeAuth(appInstance, { persistence: selectedPersistence })

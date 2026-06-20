@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { DateTime } from 'luxon'
 import QRCode from 'qrcode'
 import {
+  browserLocalPersistence,
   getMultiFactorResolver,
+  inMemoryPersistence,
   multiFactor,
   onAuthStateChanged,
   sendEmailVerification,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut,
   TotpMultiFactorGenerator,
@@ -103,6 +106,17 @@ function hasTotpFactor(user) {
 
 function getTotpHint(resolver) {
   return resolver.hints.find((hint) => hint.factorId === TotpMultiFactorGenerator.FACTOR_ID)
+}
+
+const handleSignOut = async () => {
+  if (auth && auth.currentUser) {
+    const uid = auth.currentUser.uid
+    localStorage.removeItem('mfa_remember_' + uid)
+    localStorage.removeItem('mfa_verified_at_' + uid)
+    localStorage.removeItem('admin_mfa_remember')
+    sessionStorage.removeItem('mfa_verified_session_' + uid)
+  }
+  await signOut(auth)
 }
 
 function formatAuthError(error) {
@@ -700,6 +714,10 @@ function TotpEnrollment({ user, onComplete }) {
         verificationCode,
       )
       await multiFactor(user).enroll(assertion, TOTP_DISPLAY_NAME)
+      localStorage.setItem('mfa_verified_at_' + user.uid, Date.now().toString())
+      localStorage.setItem('mfa_remember_' + user.uid, 'true')
+      sessionStorage.setItem('mfa_verified_session_' + user.uid, 'true')
+      localStorage.setItem('admin_mfa_remember', 'true')
       onComplete()
     } catch (enrollError) {
       setError(formatTotpSetupError(enrollError))
@@ -720,7 +738,7 @@ function TotpEnrollment({ user, onComplete }) {
           <button className="admin-button" disabled={isSendingEmail} type="button" onClick={sendVerificationEmail}>
             {isSendingEmail ? 'Sending...' : 'Send verification email'}
           </button>
-          <button className="admin-button is-secondary" type="button" onClick={() => signOut(auth)}>
+          <button className="admin-button is-secondary" type="button" onClick={handleSignOut}>
             Sign out
           </button>
         </div>
@@ -737,7 +755,7 @@ function TotpEnrollment({ user, onComplete }) {
       <main className="admin-state">
         <h1>Two-step setup failed</h1>
         {error && <p className="admin-alert is-error">{error}</p>}
-        <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>
+        <button className="admin-button" type="button" onClick={handleSignOut}>Sign out</button>
       </main>
     )
   }
@@ -772,7 +790,7 @@ function TotpEnrollment({ user, onComplete }) {
           <button className="admin-button" disabled={isSaving} type="submit">
             {isSaving ? 'Verifying...' : 'Enable 2FA'}
           </button>
-          <button className="admin-button is-secondary" type="button" onClick={() => signOut(auth)}>
+          <button className="admin-button is-secondary" type="button" onClick={handleSignOut}>
             Sign out
           </button>
         </div>
@@ -897,6 +915,7 @@ function Login() {
   const [mfaCode, setMfaCode] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [rememberMfa, setRememberMfa] = useState(false)
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -904,6 +923,13 @@ function Login() {
     setIsSubmitting(true)
 
     try {
+      if (rememberMfa) {
+        await setPersistence(auth, browserLocalPersistence)
+        localStorage.setItem('admin_mfa_remember', 'true')
+      } else {
+        await setPersistence(auth, inMemoryPersistence)
+        localStorage.removeItem('admin_mfa_remember')
+      }
       await signInWithEmailAndPassword(auth, email, password)
     } catch (signInError) {
       if (signInError?.code === 'auth/multi-factor-auth-required') {
@@ -947,7 +973,17 @@ function Login() {
 
     try {
       const assertion = TotpMultiFactorGenerator.assertionForSignIn(totpHint.uid, verificationCode)
-      await mfaResolver.resolveSignIn(assertion)
+      const userCredential = await mfaResolver.resolveSignIn(assertion)
+      const user = userCredential.user
+
+      if (rememberMfa) {
+        localStorage.setItem('mfa_remember_' + user.uid, 'true')
+        localStorage.setItem('mfa_verified_at_' + user.uid, Date.now().toString())
+      } else {
+        localStorage.removeItem('mfa_remember_' + user.uid)
+        localStorage.removeItem('mfa_verified_at_' + user.uid)
+      }
+      sessionStorage.setItem('mfa_verified_session_' + user.uid, 'true')
     } catch (totpError) {
       setError(formatAuthError(totpError))
       setIsSubmitting(false)
@@ -1010,6 +1046,14 @@ function Login() {
         {error && <p className="admin-alert is-error">{error}</p>}
         <label><span>Email</span><input required autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label><span>Password</span><input required autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+        <label className="admin-checkbox-row">
+          <input
+            type="checkbox"
+            checked={rememberMfa}
+            onChange={(event) => setRememberMfa(event.target.checked)}
+          />
+          <span>Do not ask again for 3 days</span>
+        </label>
         <button className="admin-button" disabled={isSubmitting} type="submit">
           {isSubmitting ? 'Signing in...' : 'Sign in'}
         </button>
@@ -1037,13 +1081,32 @@ function AdminApp() {
     }
 
     return onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser)
-      setAuthError('')
-
       if (!nextUser) {
+        setUser(null)
+        setAuthError('')
         setAuthState('signed-out')
         return
       }
+
+      // Check MFA expiration if they have MFA enrolled and aren't using the emulator
+      if (hasTotpFactor(nextUser) && !isUsingFirebaseEmulators) {
+        const isSessionVerified = sessionStorage.getItem('mfa_verified_session_' + nextUser.uid) === 'true'
+        const rememberMfa = localStorage.getItem('mfa_remember_' + nextUser.uid) === 'true'
+        const mfaVerifiedAt = parseInt(localStorage.getItem('mfa_verified_at_' + nextUser.uid) || '0', 10)
+        const isWithinThreeDays = (Date.now() - mfaVerifiedAt) < (3 * 24 * 60 * 60 * 1000)
+
+        if (!isSessionVerified && (!rememberMfa || !isWithinThreeDays)) {
+          try {
+            await handleSignOut()
+          } catch (e) {
+            console.error('Failed to sign out admin after MFA expired:', e)
+          }
+          return
+        }
+      }
+
+      setUser(nextUser)
+      setAuthError('')
 
       try {
         const adminDoc = await getDoc(doc(db, 'admins', nextUser.uid))
@@ -1184,7 +1247,7 @@ function AdminApp() {
         <h1>Staff access required</h1>
         <p>This account does not have dashboard access. Ask an owner to add it as an approved staff account.</p>
         <p>Signed-in UID: <code>{user?.uid}</code></p>
-        <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>
+        <button className="admin-button" type="button" onClick={handleSignOut}>Sign out</button>
       </main>
     )
   }
@@ -1196,7 +1259,7 @@ function AdminApp() {
         <p>This account is signed in, but it is not approved for the dashboard yet.</p>
         <p>Signed-in UID: <code>{user?.uid}</code></p>
         {authError && <p className="admin-alert is-error">{authError}</p>}
-        <button className="admin-button" type="button" onClick={() => signOut(auth)}>Sign out</button>
+        <button className="admin-button" type="button" onClick={handleSignOut}>Sign out</button>
       </main>
     )
   }
@@ -1210,7 +1273,7 @@ function AdminApp() {
         </div>
         <div className="admin-row">
           <a className="admin-button is-secondary" href="./">View storefront</a>
-          <button className="admin-button is-secondary" type="button" onClick={() => signOut(auth)}>Sign out</button>
+          <button className="admin-button is-secondary" type="button" onClick={handleSignOut}>Sign out</button>
         </div>
       </header>
 

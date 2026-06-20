@@ -13,12 +13,14 @@
     "emulators": "PATH=\"/opt/homebrew/opt/openjdk@21/bin:$PATH\" firebase emulators:start --only auth,firestore,storage,functions --import=./emulator-data --export-on-exit=./emulator-data",
     "functions:lint": "npm --prefix functions run lint",
     "migrate:legal": "npm --prefix functions run migrate:legal",
+    "deploy:legal": "node scripts/deploy-legal.mjs",
     "deploy": "npm run build && firebase deploy --project stockroomnj-10e7d --only hosting,functions",
     "deploy:hosting": "npm run build && firebase deploy --project stockroomnj-10e7d --only hosting",
     "deploy:rules": "firebase deploy --project stockroomnj-10e7d --only firestore:rules,storage",
     "deploy:all": "npm run build && firebase deploy --project stockroomnj-10e7d --only hosting,functions,firestore:rules,storage",
     "verify": "npm run lint && npm test && npm run build",
-    "release": "npm run verify && npm run deploy"
+    "release": "npm run verify && npm run deploy",
+    "ship": "bash scripts/ship.sh"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",
