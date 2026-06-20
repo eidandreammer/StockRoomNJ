@@ -10,11 +10,69 @@ import {
 import LegalDocumentModal from './LegalDocumentModal'
 import { getFriendlyErrorMessage } from './friendlyErrors'
 
+function getActiveDocsCacheKey(activeDocs) {
+  if (!activeDocs || !Array.isArray(activeDocs)) return ''
+  return activeDocs
+    .map((doc) => `${doc.document_type}:${doc.version_number}`)
+    .sort()
+    .join(',')
+}
+
+function getCachedActiveDocuments() {
+  try {
+    if (typeof sessionStorage === 'undefined') return null
+    const data = sessionStorage.getItem('stockroom_active_legal_docs')
+    return data ? JSON.parse(data) : null
+  } catch {
+    return null
+  }
+}
+
+function cacheActiveDocuments(documents) {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    sessionStorage.setItem('stockroom_active_legal_docs', JSON.stringify(documents))
+  } catch {
+    // Ignore
+  }
+}
+
+function getCachedUserConsent(userId) {
+  try {
+    if (typeof sessionStorage === 'undefined') return null
+    return sessionStorage.getItem(`stockroom_legal_consent_${userId}`)
+  } catch {
+    return null
+  }
+}
+
+function cacheUserConsent(userId, cacheKey) {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    sessionStorage.setItem(`stockroom_legal_consent_${userId}`, cacheKey)
+  } catch {
+    // Ignore
+  }
+}
+
 function LegalConsentPrompt() {
   const [user, setUser] = useState(auth?.currentUser ?? null)
   const [documents, setDocuments] = useState([])
   const [accepted, setAccepted] = useState({})
-  const [status, setStatus] = useState('idle')
+  const [status, setStatus] = useState(() => {
+    if (!auth?.currentUser) {
+      return 'idle'
+    }
+    const activeDocs = getCachedActiveDocuments()
+    if (activeDocs) {
+      const activeKey = getActiveDocsCacheKey(activeDocs)
+      const cachedConsentKey = getCachedUserConsent(auth.currentUser.uid)
+      if (cachedConsentKey === activeKey) {
+        return 'clear'
+      }
+    }
+    return 'checking'
+  })
   const [error, setError] = useState('')
   const [activeModalDoc, setActiveModalDoc] = useState(null)
 
@@ -34,22 +92,60 @@ function LegalConsentPrompt() {
     let isActive = true
 
     async function loadConsentState() {
-      setStatus('loading')
+      const cachedActive = getCachedActiveDocuments()
+      if (cachedActive) {
+        const activeKey = getActiveDocsCacheKey(cachedActive)
+        const cachedConsentKey = getCachedUserConsent(user.uid)
+        if (cachedConsentKey === activeKey) {
+          if (isActive) {
+            setDocuments([])
+            setAccepted({})
+            setStatus('clear')
+          }
+          return
+        }
+      }
+
+      setStatus('checking')
       setError('')
 
       try {
-        const [activeDocuments, missingTypes] = await Promise.all([
-          loadActiveLegalDocuments(),
-          loadMissingLegalDocumentTypes(user.uid),
-        ])
+        let activeDocuments = cachedActive
+        if (!activeDocuments) {
+          activeDocuments = await loadActiveLegalDocuments()
+          if (isActive) {
+            cacheActiveDocuments(activeDocuments)
+          }
+        }
+
+        const activeKey = getActiveDocsCacheKey(activeDocuments)
+        const cachedConsentKey = getCachedUserConsent(user.uid)
+
+        if (cachedConsentKey === activeKey) {
+          if (isActive) {
+            setDocuments([])
+            setAccepted({})
+            setStatus('clear')
+          }
+          return
+        }
+
+        const missingTypes = await loadMissingLegalDocumentTypes(user.uid)
         const missingDocuments = activeDocuments.filter((document) =>
           missingTypes.has(document.document_type),
         )
 
         if (isActive) {
-          setDocuments(missingDocuments)
-          setAccepted({})
-          setStatus('ready')
+          if (missingDocuments.length === 0) {
+            cacheUserConsent(user.uid, activeKey)
+            setDocuments([])
+            setAccepted({})
+            setStatus('clear')
+          } else {
+            setDocuments(missingDocuments)
+            setAccepted({})
+            setStatus('needs-consent')
+          }
         }
       } catch (loadError) {
         if (isActive) {
@@ -91,16 +187,28 @@ function LegalConsentPrompt() {
         })
       }
 
+      let activeDocs = getCachedActiveDocuments()
+      if (!activeDocs) {
+        activeDocs = await loadActiveLegalDocuments()
+        cacheActiveDocuments(activeDocs)
+      }
+      const activeKey = getActiveDocsCacheKey(activeDocs)
+      cacheUserConsent(user.uid, activeKey)
+
       setDocuments([])
       setAccepted({})
-      setStatus('ready')
+      setStatus('clear')
     } catch (saveError) {
       setError(getFriendlyErrorMessage(saveError, 'customer'))
-      setStatus('ready')
+      setStatus('needs-consent')
     }
   }
 
-  if (!user || (status === 'ready' && documents.length === 0) || status === 'idle') {
+  if (!user || status === 'idle' || status === 'checking' || status === 'clear') {
+    return null
+  }
+
+  if (documents.length === 0 && status !== 'saving') {
     return null
   }
 
@@ -121,7 +229,6 @@ function LegalConsentPrompt() {
           </div>
         </div>
 
-        {status === 'loading' && <p className="checkout-note">Checking your legal agreements...</p>}
         {error && <p className="checkout-error" role="alert">{error}</p>}
 
         {documents.length > 0 && (
@@ -178,11 +285,13 @@ function LegalConsentPrompt() {
           {status === 'saving' ? 'Saving...' : 'Accept and continue'}
         </button>
       </form>
-      <LegalDocumentModal
-        isOpen={activeModalDoc !== null}
-        onClose={() => setActiveModalDoc(null)}
-        {...activeModalDoc}
-      />
+      {activeModalDoc && (
+        <LegalDocumentModal
+          isOpen={activeModalDoc !== null}
+          onClose={() => setActiveModalDoc(null)}
+          {...activeModalDoc}
+        />
+      )}
     </div>
   )
 }
