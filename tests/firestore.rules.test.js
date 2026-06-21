@@ -72,6 +72,13 @@ async function seed() {
       status: 'approved_awaiting_payment',
       userId: 'staff-user',
     })
+    await setDoc(doc(database, 'user_agreement_history', 'history-1'), {
+      document_id: 'TOS_1.0',
+      user_id: 'staff-user',
+    })
+    await setDoc(doc(database, 'deadline_extensions', 'extension-1'), {
+      orderId: 'order-1',
+    })
   })
 }
 
@@ -172,6 +179,31 @@ describe('Firestore legal and commerce rules', () => {
     await assertSucceeds(getDoc(doc(staffDb, 'orders', 'order-1')))
     await assertSucceeds(getDoc(doc(staffDb, 'user_agreements', 'agreement-1')))
     await assertFails(getDoc(doc(otherDb, 'orders', 'order-1')))
+  })
+
+  it('secures user_agreement_history and deadline_extensions writes', async () => {
+    await seed()
+    const publicDb = testEnv.unauthenticatedContext().firestore()
+    const staffDb = testEnv.authenticatedContext('staff-user').firestore()
+
+    await assertFails(setDoc(doc(publicDb, 'user_agreement_history', 'new-hist'), { user_id: 'guest' }))
+    await assertFails(setDoc(doc(staffDb, 'deadline_extensions', 'new-ext'), { orderId: 'order-1' }))
+  })
+
+  it('allows read for user_agreement_history (owner/admin) and deadline_extensions (admin only)', async () => {
+    await seed()
+    const adminDb = testEnv.authenticatedContext('admin-user').firestore()
+    const staffDb = testEnv.authenticatedContext('staff-user').firestore()
+    const otherDb = testEnv.authenticatedContext('other-user').firestore()
+
+    // user_agreement_history read
+    await assertSucceeds(getDoc(doc(adminDb, 'user_agreement_history', 'history-1')))
+    await assertSucceeds(getDoc(doc(staffDb, 'user_agreement_history', 'history-1')))
+    await assertFails(getDoc(doc(otherDb, 'user_agreement_history', 'history-1')))
+
+    // deadline_extensions read
+    await assertSucceeds(getDoc(doc(adminDb, 'deadline_extensions', 'extension-1')))
+    await assertFails(getDoc(doc(staffDb, 'deadline_extensions', 'extension-1')))
   })
 })
 

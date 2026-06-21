@@ -17,6 +17,7 @@ import { useShoppingCart } from './ShoppingCartContext'
 import { ShoppingCartProvider } from './ShoppingCartProvider'
 import CheckoutDialog from './CheckoutDialog'
 import LegalConsentPrompt from './LegalConsentPrompt'
+import { apiRequest } from './api'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -629,6 +630,7 @@ function SiteFooter({ currentPage, footerRef }) {
 
 function SiteShell({ children, currentPage = 'home' }) {
   const [isFooterVisible, setIsFooterVisible] = useState(false)
+  const [bidCheckoutOrderId, setBidCheckoutOrderId] = useState(null)
   const footerRef = useRef(null)
 
   useEffect(() => {
@@ -647,6 +649,39 @@ function SiteShell({ children, currentPage = 'home' }) {
     return () => observer.disconnect()
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const params = new URLSearchParams(window.location.search)
+    const bidOrderId = params.get('checkout_bid_order')
+    const orderId = params.get('order_id')
+    const checkoutStatus = params.get('checkout')
+
+    if (bidOrderId) {
+      setTimeout(() => {
+        setBidCheckoutOrderId(bidOrderId)
+      }, 0)
+      const newUrl = new URL(window.location)
+      newUrl.searchParams.delete('checkout_bid_order')
+      window.history.replaceState(null, '', newUrl.toString())
+    } else if (orderId && checkoutStatus === 'success') {
+      apiRequest(`/api/orders/details?order_id=${orderId}`)
+        .then((order) => {
+          if (order.fulfillmentMethod === 'pending_customer_selection') {
+            setBidCheckoutOrderId(orderId)
+          }
+        })
+        .catch((err) => {
+          console.error('Error checking order fulfillment details:', err)
+        })
+
+      const newUrl = new URL(window.location)
+      newUrl.searchParams.delete('order_id')
+      newUrl.searchParams.delete('checkout')
+      window.history.replaceState(null, '', newUrl.toString())
+    }
+  }, [])
+
   return (
     <ShoppingCartProvider>
       <div className="app-shell">
@@ -658,6 +693,12 @@ function SiteShell({ children, currentPage = 'home' }) {
         {children}
         <SiteFooter currentPage={currentPage} footerRef={footerRef} />
         <LegalConsentPrompt />
+        {bidCheckoutOrderId && (
+          <CheckoutDialog
+            orderId={bidCheckoutOrderId}
+            onClose={() => setBidCheckoutOrderId(null)}
+          />
+        )}
       </div>
     </ShoppingCartProvider>
   )

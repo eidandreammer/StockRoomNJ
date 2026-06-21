@@ -1,6 +1,6 @@
 # **Terms of Service**
 
-**Effective Date:** 6/19/2026
+**Effective Date:** 6/20/2026
 
 Welcome to The Stock Room NJ ("we," "us," or "our"), operated by Bitesites LLC. These Terms of Service ("Terms") govern your access to and use of stockroomnj.com and any related services, applications, and tools (collectively, the "Platform"). By accessing or using the Platform, you agree to be bound by these Terms. If you do not agree, you must not use the Platform.
 
@@ -16,7 +16,7 @@ You must be at least 18 years old and capable of forming a legally binding contr
 
 You may be required to register for an account to participate in certain features, such as active auctions. However, direct purchases may be completed as a guest, provided you supply valid age verification, contact, shipping, and payment information.
 
-Whether checking out as a guest or creating an account, you agree to provide accurate, current, and complete information. If you create an account, you are solely responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must notify us immediately of any unauthorized use of your account.
+You agree to provide accurate, current, and complete information. If you create an account, you are solely responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must notify us immediately of any unauthorized use of your account.
 
 ### **4\. Bidding and Purchasing Mechanics**
 
@@ -58,6 +58,24 @@ You must provide a valid payment method to use the Platform. By providing paymen
 #### **B. Non-Payment**
 
 If you fail to pay for a winning bid or purchase within the specified timeframe, we reserve the right to cancel the transaction, restrict your account or guest access, and take necessary actions to recover the owed amount, including collection efforts.
+
+#### **C. Approved Bids and Payment Deadline**
+
+If StockRoomNJ approves your bid for an item, approval means that you have been given the opportunity to purchase the item at the approved bid price. An approved bid does not transfer ownership of the item and does not create a completed sale until payment has been successfully completed and confirmed. Items remain the property of StockRoomNJ until payment is completed and confirmed.
+
+Unless StockRoomNJ states otherwise in writing, you must complete payment within forty-eight (48) hours after the approved-bid notice is sent to you. An approved bid may temporarily reserve an item, but that reservation expires if payment is not completed within that forty-eight (48) hour period. If payment is not completed within that period, StockRoomNJ may cancel the unpaid approved bid, release any hold or reservation on the item, offer the item to another bidder, relist the item for sale, or take other reasonable action.
+
+Stripe Checkout Sessions and payment links may expire for security or technical reasons. If a payment page or Stripe checkout page expires before the 48-hour payment window ends, you may need to reopen the payment page, request a refreshed payment link, or contact StockRoomNJ for help. Refreshing or recreating a Stripe checkout session does not extend the 48-hour payment deadline unless StockRoomNJ expressly extends the deadline in writing.
+
+StockRoomNJ may, at its discretion, extend, cancel, or modify an approved-bid payment deadline when necessary to address technical issues, suspected fraud, inventory errors, pricing errors, payment processing issues, payment failure, legal/compliance issues, customer support requests, or other operational concerns. We reserve the right to cancel any transaction or approved bid affected by such issues at any time.
+
+#### **D. Fulfillment Process and Responsibilities**
+
+* Pickup or shipping options must be selected during the checkout or payment flow.
+* Fulfillment or shipping process begins only after payment is complete.
+* Pickup availability, shipping timing, and tracking updates are not guaranteed until payment clears.
+* Failure to choose a required fulfillment method may delay checkout or fulfillment.
+* If shipping is selected, the customer is responsible for providing accurate and complete shipping information.
 
 ### **7\. Returns and Refunds**
 

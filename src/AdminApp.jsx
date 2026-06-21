@@ -28,6 +28,7 @@ import { getFriendlyErrorMessage } from './friendlyErrors'
 import AdminBids from './AdminBids'
 import AdminLegalDocuments from './AdminLegalDocuments'
 import AdminProducts from './AdminProducts'
+import AdminOrders from './AdminOrders'
 import {
   GOODS_OPTIONS,
   STORE_TIME_ZONE,
@@ -1288,6 +1289,7 @@ function AdminApp() {
 
         <AdminProducts user={user} />
         <AdminBids user={user} />
+        <AdminOrders user={user} />
         <AdminLegalDocuments user={user} />
 
         {editing && (

@@ -184,6 +184,8 @@ function LegalConsentPrompt() {
           user,
           userId: user.uid,
           versionNumber: document.version_number,
+          email: user.email,
+          context: { prompt: 'legal_consent_prompt' },
         })
       }
 

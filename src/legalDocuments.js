@@ -56,13 +56,16 @@ export async function loadMissingLegalDocumentTypes(userId) {
   return new Set(result.missing_document_types ?? [])
 }
 
-export async function agreeToLegalDocument({ documentType, user, userId, versionNumber }) {
+export async function agreeToLegalDocument({ documentType, user, userId, versionNumber, email, context }) {
   const authHeaders = user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}
   const result = await apiRequest('/api/legal/agree', {
     body: JSON.stringify({
       document_type: documentType,
       user_id: userId,
       version_number: versionNumber,
+      email: email || null,
+      context: context || null,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
     }),
     headers: authHeaders,
     method: 'POST',

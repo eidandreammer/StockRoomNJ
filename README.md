@@ -38,12 +38,13 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
    - **DKIM**: Add the DKIM TXT record provided by Postmark.
    - **DMARC**: Configure a DMARC policy (e.g., `v=DMARC1; p=none; rua=mailto:dmarc-reports@yourdomain.com`).
    - **Custom Sending Domain**: Verify DKIM and Return-Path settings in your DNS zone (e.g. Cloudflare) to optimize deliverability.
-5. **Firebase Secrets Configuration**:
-   Before deploying your functions, you must configure Postmark credentials as Firebase Secrets:
+5. **Firebase Configuration**:
+   Configure non-sensitive runtime variables in `functions/.env.stockroomnj-10e7d` (such as `EMAIL_FROM`, `EMAIL_REPLY_TO`, `STRIPE_SUCCESS_URL`, and `STRIPE_CANCEL_URL`).
+   Before deploying your functions, you must configure actual sensitive credentials as Firebase Secrets:
    ```bash
    firebase functions:secrets:set POSTMARK_SERVER_TOKEN="your-postmark-server-token"
-   firebase functions:secrets:set EMAIL_FROM="your-verified-sender@domain.com"
-   firebase functions:secrets:set EMAIL_REPLY_TO="your-reply-to@domain.com"
+   firebase functions:secrets:set STRIPE_SECRET_KEY="your-stripe-secret-key"
+   firebase functions:secrets:set STRIPE_WEBHOOK_SECRET="your-stripe-webhook-secret"
    ```
 6. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
 7. Create each staff account in Firebase Console under Authentication.
@@ -51,6 +52,14 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
    may contain `{ "enabled": true }`; authorization is based on the document existing.
 9. Run `firebase login`, select the project with `firebase use --add`, and deploy the
    checked-in Firestore and Storage rules with `npm run deploy:rules`.
+
+### Checkout Fulfillment Flow
+
+The checkout process requires customers to select a fulfillment method before finalizing their order:
+- **In-store Pickup**: Collected from the Wallington, NJ shop. Sets the order status to `pending_ready` / `ready_for_pickup` when prepared by staff.
+- **Shipping**: Validates and normalizes customer full name, street, city, state, zip, and country (default US) before proceeding to payment.
+- **Approved Bids**: Initiates with a status of `pending_customer_selection`. The customer must select their preferred fulfillment method via the email link `?checkout_bid_order=ORDER_ID` or on post-payment redirection before the order status is finalized.
+- **Admin Control**: Staff can manage paid orders, fulfill them, view tracking/pickup options, and apply overrides (e.g. changing shipping/pickup method with explicit authorization).
 
 ### Email System & Audit Logs
 

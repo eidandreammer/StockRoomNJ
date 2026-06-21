@@ -334,12 +334,15 @@ const Masonry = ({
             {item.type === 'video' ? (
               <video
                 className="masonry-item-img masonry-item-video"
-                src={item.img}
                 autoPlay
                 loop
                 muted
                 playsInline
-              />
+                preload="metadata"
+              >
+                <source src={item.img} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
             ) : (
               <img
                 className="masonry-item-img"

@@ -17,6 +17,10 @@
       {
         "source": "/api/**",
         "function": "api"
+      },
+      {
+        "source": "/pay/approved-bid/**",
+        "destination": "/pay.html"
       }
     ],
     "headers": [

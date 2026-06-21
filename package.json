@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run tests/eventModel.test.js tests/bidMath.test.js",
+    "test": "vitest run tests/eventModel.test.js tests/bidMath.test.js tests/fulfillment.test.js tests/approvedBidSecureFlow.test.js",
     "test:rules": "firebase emulators:exec --project stockroomnj-rules-test --only firestore \"vitest run tests/firestore.rules.test.js\"",
     "emulators": "PATH=\"/opt/homebrew/opt/openjdk@21/bin:$PATH\" firebase emulators:start --only auth,firestore,storage,functions --import=./emulator-data --export-on-exit=./emulator-data",
     "functions:lint": "npm --prefix functions run lint",

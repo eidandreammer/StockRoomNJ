@@ -7,6 +7,12 @@ export default defineConfig({
   base: './',
   envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   plugins: [react()],
+  resolve: {
+    alias: {
+      'firebase-admin': resolve(import.meta.dirname, 'functions/node_modules/firebase-admin'),
+      'stripe': resolve(import.meta.dirname, 'functions/node_modules/stripe'),
+    },
+  },
   server: {
     proxy: {
       '/api': {
@@ -22,6 +28,7 @@ export default defineConfig({
         admin: resolve(import.meta.dirname, 'admin.html'),
         shop: resolve(import.meta.dirname, 'shop.html'),
         legal: resolve(import.meta.dirname, 'legal.html'),
+        pay: resolve(import.meta.dirname, 'pay.html'),
       },
     },
   },

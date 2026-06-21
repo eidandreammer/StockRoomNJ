@@ -16,7 +16,7 @@ const documents = [
     contentUrl: process.env.TOS_CONTENT_URL || '/Terms%20of%20Service%20-%20Stock%20Room%20NJ.md',
     documentType: 'TOS',
     filePath: resolve(rootDir, 'public', 'Terms of Service - Stock Room NJ.md'),
-    versionNumber: process.env.TOS_VERSION || '1.0',
+    versionNumber: process.env.TOS_VERSION || '1.1',
   },
   {
     contentUrl: process.env.PRIVACY_POLICY_CONTENT_URL || '/Privacy%20Policy%20-%20StockRoomNJ.md',
