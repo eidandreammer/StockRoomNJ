@@ -115,12 +115,16 @@ function ShoppingCartDrawer({ isOpen, onClose }) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const formattedSubtotal = priceFormatter.format(subtotal)
 
-  if (!isOpen) {
-    return null
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
+    if (!isOpen) {
+      setIsCheckoutOpen(false)
+    }
   }
 
   return (
-    <div className="shopping-cart-drawer is-open" id="shopping-cart">
+    <div className={`shopping-cart-drawer ${isOpen ? 'is-open' : ''}`} id="shopping-cart" aria-hidden={!isOpen}>
       <button
         aria-label="Close shopping cart"
         className="drawer-backdrop"
@@ -483,59 +487,57 @@ function SiteHeader({ currentPage, isFooterVisible }) {
         </div>
       </header>
 
-      {isMenuOpen && (
-        <div className="mobile-menu is-open" id="mobile-menu">
-          <button
-            aria-label="Close menu"
-            className="drawer-backdrop"
-            type="button"
-            onClick={() => setIsMenuOpen(false)}
-          />
-          <aside
-            aria-label="Mobile navigation"
-            aria-modal="true"
-            className="drawer-panel"
-            role="dialog"
-          >
-            <div className="modal-head">
-              <img className="brand-logo" src={brandLogo} alt="The Stock Room logo" />
-              <button
-                aria-label="Close menu"
-                className="icon-button"
-                type="button"
+      <div className={`mobile-menu ${isMenuOpen ? 'is-open' : ''}`} id="mobile-menu" aria-hidden={!isMenuOpen}>
+        <button
+          aria-label="Close menu"
+          className="drawer-backdrop"
+          type="button"
+          onClick={() => setIsMenuOpen(false)}
+        />
+        <aside
+          aria-label="Mobile navigation"
+          aria-modal="true"
+          className="drawer-panel"
+          role="dialog"
+        >
+          <div className="modal-head">
+            <img className="brand-logo" src={brandLogo} alt="The Stock Room logo" />
+            <button
+              aria-label="Close menu"
+              className="icon-button"
+              type="button"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Icon name="close" />
+            </button>
+          </div>
+          <nav aria-label="Mobile primary navigation" className="drawer-nav">
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                aria-current={link.page === currentPage ? 'page' : undefined}
+                href={link.href}
                 onClick={() => setIsMenuOpen(false)}
               >
-                <Icon name="close" />
-              </button>
-            </div>
-            <nav aria-label="Mobile primary navigation" className="drawer-nav">
-              {navLinks.map((link) => (
-                <a
-                  key={link.label}
-                  aria-current={link.page === currentPage ? 'page' : undefined}
-                  href={link.href}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {link.label}
-                  <Icon name="arrow" />
-                </a>
-              ))}
-              <button
-                type="button"
-                className="mobile-account-link"
-                onClick={() => {
-                  setIsMenuOpen(false)
-                  setIsAccountOpen(true)
-                }}
-              >
-                <span>{user ? 'My Account' : 'Sign In / Register'}</span>
-                <Icon name="profile" />
-              </button>
-            </nav>
-            <p className="drawer-note">Open Monday-Friday in Wallington.</p>
-          </aside>
-        </div>
-      )}
+                {link.label}
+                <Icon name="arrow" />
+              </a>
+            ))}
+            <button
+              type="button"
+              className="mobile-account-link"
+              onClick={() => {
+                setIsMenuOpen(false)
+                setIsAccountOpen(true)
+              }}
+            >
+              <span>{user ? 'My Account' : 'Sign In / Register'}</span>
+              <Icon name="profile" />
+            </button>
+          </nav>
+          <p className="drawer-note">Open Monday-Friday in Wallington.</p>
+        </aside>
+      </div>
 
       <ShoppingCartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
       <AccountDrawer isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />

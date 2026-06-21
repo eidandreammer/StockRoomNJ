@@ -106,6 +106,12 @@ export default function AccountDrawer({ isOpen, onClose }) {
     return unsubscribe
   }, [])
 
+  useEffect(() => {
+    if (!isOpen) {
+      resetInputs()
+    }
+  }, [isOpen])
+
   function resetInputs() {
     setEmailInput('')
     setPasswordInput('')
@@ -383,10 +389,8 @@ export default function AccountDrawer({ isOpen, onClose }) {
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="shopping-cart-drawer is-open" id="user-account">
+    <div className={`shopping-cart-drawer ${isOpen ? 'is-open' : ''}`} id="user-account" aria-hidden={!isOpen}>
       <button
         aria-label="Close account panel"
         className="drawer-backdrop"
