@@ -231,5 +231,34 @@ describe('Firestore user profile rules', () => {
     await assertFails(getDoc(doc(otherDb, 'users', 'user-123')))
     await assertFails(setDoc(doc(otherDb, 'users', 'user-123'), { displayName: 'Bob' }))
   })
-})
 
+  it('rejects extra profile fields and invalid nested field types', async () => {
+    const userDb = testEnv.authenticatedContext('user-123').firestore()
+
+    await assertFails(setDoc(doc(userDb, 'users', 'user-123'), {
+      displayName: 'Alice',
+      role: 'admin',
+    }))
+    await assertFails(setDoc(doc(userDb, 'users', 'user-123'), {
+      displayName: 123,
+    }))
+    await assertFails(setDoc(doc(userDb, 'users', 'user-123'), {
+      notifications: { newsletter: 'yes' },
+    }))
+    await assertFails(setDoc(doc(userDb, 'users', 'user-123'), {
+      shippingAddress: { street: '1 Main St', unexpected: 'value' },
+    }))
+  })
+
+  it('allows admins to manage user profiles without exposing them publicly', async () => {
+    await seed()
+    const adminDb = testEnv.authenticatedContext('admin-user').firestore()
+    const publicDb = testEnv.unauthenticatedContext().firestore()
+    const profileRef = doc(adminDb, 'users', 'customer-user')
+
+    await assertSucceeds(setDoc(profileRef, { internalMigrationField: true }))
+    await assertSucceeds(getDoc(profileRef))
+    await assertSucceeds(deleteDoc(profileRef))
+    await assertFails(getDoc(doc(publicDb, 'users', 'customer-user')))
+  })
+})

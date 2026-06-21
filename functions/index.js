@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import admin from 'firebase-admin'
 import { onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentDeleted } from 'firebase-functions/v2/firestore'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
 import Stripe from 'stripe'
 import { sendEmail } from './email/index.js'
 
@@ -19,23 +20,62 @@ function getStripe() {
   return stripeInstance
 }
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean)
+export function getAllowedOrigins() {
+  return (process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean)
+}
 const documentTypes = ['TOS', 'PRIVACY_POLICY']
+const DIRECT_CHECKOUT_EXPIRATION_SECONDS = 31 * 60
+const GUEST_TOKEN_TTL_SECONDS = 24 * 60 * 60
+const RATE_LIMIT_WINDOW_MS = 60 * 1000
 
 function sendJson(response, status, payload) {
   response.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   response.status(status).json(payload)
 }
 
-function applyCors(request, response) {
-  const origin = request.headers.origin
+function requestError(message, status = 400) {
+  const error = new Error(message)
+  error.status = status
+  return error
+}
 
-  if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-    response.set('Access-Control-Allow-Origin', origin || '*')
+function isLocalOrigin(origin) {
+  try {
+    const parsed = new URL(origin)
+    const isHttp = parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    const isLoopback = parsed.hostname === 'localhost'
+      || parsed.hostname === '::1'
+      || /^127(?:\.\d{1,3}){3}$/.test(parsed.hostname)
+
+    return isHttp && isLoopback
+  } catch {
+    return false
+  }
+}
+
+export function isCorsOriginAllowed(origin) {
+  if (!origin) return true
+
+  const isLocalRuntime = process.env.FUNCTIONS_EMULATOR === 'true'
+    || process.env.NODE_ENV === 'development'
+    || process.env.NODE_ENV === 'test'
+
+  return getAllowedOrigins().includes(origin) || (isLocalRuntime && isLocalOrigin(origin))
+}
+
+export function applyCors(request, response) {
+  const origin = request.headers.origin
+  if (!origin) return true
+
+  if (isCorsOriginAllowed(origin)) {
+    response.set('Access-Control-Allow-Origin', origin)
+    response.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Guest-Token')
+    response.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.set('Vary', 'Origin')
+    return true
   }
 
-  response.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
-  response.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  return false
 }
 
 function body(request) {
@@ -72,6 +112,134 @@ function requestIp(request) {
 
 function agreementId(userId, documentId) {
   return crypto.createHash('sha256').update(`${userId}:${documentId}`).digest('hex')
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
+export function getGuestTokenSecret() {
+  const secret = process.env.GUEST_TOKEN_SECRET || ''
+
+  if (!secret) {
+    throw requestError('Guest token signing is not configured.', 500)
+  }
+
+  return secret
+}
+
+export function signGuestSession(userId, email, options = {}) {
+  const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1000)
+  const expiresAt = nowSeconds + (options.ttlSeconds ?? GUEST_TOKEN_TTL_SECONDS)
+  const encodedPayload = Buffer.from(JSON.stringify({
+    email: normalizeEmail(email),
+    exp: expiresAt,
+    iat: nowSeconds,
+    sub: userId,
+    v: 1,
+  })).toString('base64url')
+  const signature = crypto
+    .createHmac('sha256', getGuestTokenSecret())
+    .update(encodedPayload)
+    .digest('hex')
+
+  return `${encodedPayload}.${signature}`
+}
+
+export function verifyGuestSession(userId, email, token, options = {}) {
+  if (!token || typeof token !== 'string') {
+    return false
+  }
+
+  try {
+    const [encodedPayload, signature, extra] = token.split('.')
+    if (!encodedPayload || !signature || extra || signature.length !== 64) return false
+
+    const expected = crypto
+      .createHmac('sha256', getGuestTokenSecret())
+      .update(encodedPayload)
+      .digest('hex')
+    if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
+      return false
+    }
+
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'))
+    const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1000)
+
+    return payload.v === 1
+      && payload.sub === userId
+      && payload.email === normalizeEmail(email)
+      && Number.isInteger(payload.iat)
+      && Number.isInteger(payload.exp)
+      && payload.iat <= nowSeconds + 60
+      && payload.exp > nowSeconds
+  } catch {
+    return false
+  }
+}
+
+function rateLimitDocumentId(key) {
+  return crypto.createHash('sha256').update(key).digest('hex')
+}
+
+async function consumeRateLimits(limits, nowMillis = Date.now()) {
+  const cutoff = nowMillis - RATE_LIMIT_WINDOW_MS
+  const refs = limits.map((limit) => db.collection('rate_limits').doc(rateLimitDocumentId(limit.key)))
+
+  await db.runTransaction(async (transaction) => {
+    const snapshots = []
+    for (const ref of refs) {
+      snapshots.push(await transaction.get(ref))
+    }
+
+    const nextHits = snapshots.map((snapshot) => {
+      const hits = snapshot.exists && Array.isArray(snapshot.data().hits) ? snapshot.data().hits : []
+      return hits.filter((hit) => Number.isFinite(hit) && hit > cutoff)
+    })
+
+    const blockedIndex = nextHits.findIndex((hits, index) => hits.length >= limits[index].maxRequests)
+    if (blockedIndex >= 0) {
+      throw new Error(limits[blockedIndex].message)
+    }
+
+    refs.forEach((ref, index) => {
+      transaction.set(ref, {
+        expiresAt: admin.firestore.Timestamp.fromMillis(nowMillis + RATE_LIMIT_WINDOW_MS * 2),
+        hits: [...nextHits[index], nowMillis],
+        type: limits[index].type,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+    })
+  })
+}
+
+export async function applyRateLimiting(request, userId, buyerEmail, productId) {
+  const ip = requestIp(request)
+  const limits = [
+    { key: `email:${normalizeEmail(buyerEmail)}`, maxRequests: 5, message: 'Too many bids with this email. Please wait a moment.', type: 'email' },
+    { key: `user:${userId}`, maxRequests: 5, message: 'Too many bids from this user. Please wait a moment.', type: 'user' },
+    { key: `product:${productId}`, maxRequests: 20, message: 'Too many bids on this product. Please wait a moment.', type: 'product' },
+  ]
+
+  if (ip) {
+    limits.unshift({ key: `ip:${ip}`, maxRequests: 10, message: 'Too many bids from this IP. Please wait a moment.', type: 'ip' })
+  }
+
+  await consumeRateLimits(limits)
+}
+
+async function applyGuestAgreementRateLimit(request, userId, email) {
+  const ip = requestIp(request)
+  const limits = [
+    { key: `legal-user:${userId}`, maxRequests: 10, message: 'Too many agreement requests. Please wait a moment.', type: 'legal-user' },
+    { key: `legal-email:${normalizeEmail(email)}`, maxRequests: 10, message: 'Too many agreement requests. Please wait a moment.', type: 'legal-email' },
+  ]
+
+  if (ip) {
+    limits.unshift({ key: `legal-ip:${ip}`, maxRequests: 20, message: 'Too many agreement requests. Please wait a moment.', type: 'legal-ip' })
+  }
+
+  await consumeRateLimits(limits)
 }
 
 function cents(value) {
@@ -163,14 +331,19 @@ async function assertAdmin(request) {
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
 
   if (!token) {
-    throw new Error('Admin authorization is required.')
+    throw requestError('Admin authorization is required.', 401)
   }
 
-  const decoded = await admin.auth().verifyIdToken(token)
+  let decoded
+  try {
+    decoded = await admin.auth().verifyIdToken(token)
+  } catch {
+    throw requestError('Admin authorization is invalid.', 401)
+  }
   const adminDoc = await db.collection('admins').doc(decoded.uid).get()
 
   if (!adminDoc.exists) {
-    throw new Error('Admin authorization is required.')
+    throw requestError('Admin authorization is required.', 403)
   }
 
   return decoded
@@ -185,13 +358,18 @@ async function assertUserRequest(request, userId) {
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
 
   if (!token) {
-    throw new Error('Account authorization is required.')
+    throw requestError('Account authorization is required.', 401)
   }
 
-  const decoded = await admin.auth().verifyIdToken(token)
+  let decoded
+  try {
+    decoded = await admin.auth().verifyIdToken(token)
+  } catch {
+    throw requestError('Account authorization is invalid.', 401)
+  }
 
   if (decoded.uid !== userId) {
-    throw new Error('Account authorization does not match this user.')
+    throw requestError('Account authorization does not match this user.', 401)
   }
 
   return decoded
@@ -211,6 +389,21 @@ async function handleCheckConsent(request, response) {
     return
   }
 
+  const ip = requestIp(request)
+  const limits = [
+    { key: `consent-user:${userId}`, maxRequests: 20, message: 'Too many consent checks. Please wait a moment.', type: 'consent-user' },
+  ]
+  if (ip) {
+    limits.unshift({ key: `consent-ip:${ip}`, maxRequests: 30, message: 'Too many consent checks. Please wait a moment.', type: 'consent-ip' })
+  }
+
+  try {
+    await consumeRateLimits(limits)
+  } catch (error) {
+    sendJson(response, 429, { error: error.message })
+    return
+  }
+
   sendJson(response, 200, await checkConsent(userId))
 }
 
@@ -219,11 +412,25 @@ async function handleAgree(request, response) {
   const userId = requiredString(payload, 'user_id')
   const documentType = requiredString(payload, 'document_type')
   const versionNumber = requiredString(payload, 'version_number')
-  const email = payload.email || null
+  const email = payload.email ? normalizeEmail(payload.email) : null
   const context = payload.context || null
   const userAgent = payload.user_agent || null
 
-  await assertUserRequest(request, userId)
+  if (userId.startsWith('guest:')) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      sendJson(response, 400, { error: 'A valid guest email is required.' })
+      return
+    }
+
+    try {
+      await applyGuestAgreementRateLimit(request, userId, email)
+    } catch (error) {
+      sendJson(response, 429, { error: error.message })
+      return
+    }
+  } else {
+    await assertUserRequest(request, userId)
+  }
 
   if (!documentTypes.includes(documentType)) {
     sendJson(response, 400, { error: 'Unsupported document_type.' })
@@ -280,7 +487,11 @@ async function handleAgree(request, response) {
     })
   })
 
-  sendJson(response, 200, { agreement_id: id })
+  const resPayload = { agreement_id: id }
+  if (userId.startsWith('guest:')) {
+    resPayload.guest_token = signGuestSession(userId, email)
+  }
+  sendJson(response, 200, resPayload)
 }
 
 async function handlePublishLegal(request, response) {
@@ -337,11 +548,49 @@ export async function handlePlaceBid(request, response) {
   const payload = body(request)
   const productId = requiredString(payload, 'product_id')
   const userId = requiredString(payload, 'user_id')
-  const buyerEmail = requiredString(payload, 'buyer_email')
-  const bidAmount = Number(payload.bid_amount)
+  const buyerEmail = normalizeEmail(requiredString(payload, 'buyer_email'))
+  const bidAmount = payload.bid_amount
 
-  if (!Number.isFinite(bidAmount) || bidAmount <= 0) {
+  if (typeof bidAmount !== 'number' || !Number.isFinite(bidAmount) || bidAmount <= 0) {
     sendJson(response, 400, { error: 'bid_amount must be a positive number.' })
+    return
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(buyerEmail)) {
+    sendJson(response, 400, { error: 'A valid email is required.' })
+    return
+  }
+
+  try {
+    if (userId.startsWith('guest:')) {
+      const guestToken = payload.guest_token
+      if (!verifyGuestSession(userId, buyerEmail, guestToken)) {
+        sendJson(response, 401, { error: 'Invalid or missing guest session token. Please re-agree to legal terms.' })
+        return
+      }
+    } else {
+      const decoded = await assertUserRequest(request, userId)
+      if (!decoded.email || normalizeEmail(decoded.email) !== buyerEmail) {
+        sendJson(response, 401, { error: 'Account email does not match this bid.' })
+        return
+      }
+    }
+  } catch (authErr) {
+    sendJson(response, 401, { error: authErr.message || 'Authorization failed.' })
+    return
+  }
+
+  const consent = await checkConsent(userId)
+  if (!consent.has_consent) {
+    sendJson(response, 409, { error: 'You must accept the Terms of Service and Privacy Policy before bidding.' })
+    return
+  }
+
+  try {
+    await applyRateLimiting(request, userId, buyerEmail, productId)
+  } catch (rlErr) {
+    sendJson(response, 429, { error: rlErr.message })
     return
   }
 
@@ -351,49 +600,60 @@ export async function handlePlaceBid(request, response) {
   let previousBidId = null
   let productName = productId
 
-  await db.runTransaction(async (transaction) => {
-    const productSnapshot = await transaction.get(productRef)
+  try {
+    await db.runTransaction(async (transaction) => {
+      const productSnapshot = await transaction.get(productRef)
 
-    if (!productSnapshot.exists) {
-      throw new Error('Product was not found.')
-    }
+      if (!productSnapshot.exists) {
+        throw new Error('Product was not found.')
+      }
 
-    const product = productSnapshot.data()
+      const product = productSnapshot.data()
 
-    if (product.status !== 'published' || product.saleMode !== 'auction' || product.auctionStatus === 'closed') {
-      throw new Error('This item is not open for bidding.')
-    }
+      if (product.status !== 'published' || product.saleMode !== 'auction' || product.auctionStatus !== 'open') {
+        throw new Error('This item is not open for bidding.')
+      }
 
-    const currentPrice = Number(product.currentBidPrice) || Number(product.price) || 0
-    const minimumBid = dollars(cents(currentPrice) + cents(calculateIncrement(currentPrice)))
+      if (product.auctionEndsAt) {
+        const endsAt = product.auctionEndsAt.toMillis ? product.auctionEndsAt.toMillis() : new Date(product.auctionEndsAt).getTime()
+        if (Date.now() >= endsAt) {
+          throw new Error('This auction has closed.')
+        }
+      }
 
-    if (cents(bidAmount) < cents(minimumBid)) {
-      throw new Error(`Bid must be at least $${minimumBid.toFixed(2)}.`)
-    }
+      const currentPrice = Number(product.currentBidPrice) || Number(product.price) || 0
+      const minimumBid = dollars(cents(currentPrice) + cents(calculateIncrement(currentPrice)))
 
-    previousBidId = product.currentBidId || null
-    productName = product.name || productId
+      if (cents(bidAmount) < cents(minimumBid)) {
+        throw new Error(`Bid must be at least $${minimumBid.toFixed(2)}.`)
+      }
 
-    bidRecord = {
-      amount: dollars(cents(bidAmount)),
-      buyerEmail,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      ipAddress: requestIp(request),
-      productId,
-      productName: product.name || productId,
-      status: 'pending_admin_approval',
-      userId,
-    }
+      previousBidId = product.currentBidId || null
+      productName = product.name || productId
 
-    transaction.set(bidRef, bidRecord)
-    transaction.update(productRef, {
-      currentBidId: bidRef.id,
-      currentBidPrice: bidRecord.amount,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      bidRecord = {
+        amount: dollars(cents(bidAmount)),
+        buyerEmail,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        ipAddress: requestIp(request),
+        productId,
+        productName: product.name || productId,
+        status: 'pending_admin_approval',
+        userId,
+      }
+
+      transaction.set(bidRef, bidRecord)
+      transaction.update(productRef, {
+        currentBidId: bidRef.id,
+        currentBidPrice: bidRecord.amount,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
     })
-  })
+  } catch (err) {
+    sendJson(response, 400, { error: err.message || 'Bidding transaction failed.' })
+    return
+  }
 
-  // 1. Fetch customer name
   let customerName = 'Collector'
   if (userId && !userId.startsWith('guest:')) {
     try {
@@ -406,7 +666,6 @@ export async function handlePlaceBid(request, response) {
     }
   }
 
-  // 1. Send bid confirmation email to current bidder
   const sendBidEmail = async () => {
     try {
       await sendEmail({
@@ -422,7 +681,6 @@ export async function handlePlaceBid(request, response) {
   }
   await sendBidEmail()
 
-  // 2. Send outbid alert email to previous bidder
   if (previousBidId) {
     try {
       const previousBidSnap = await db.collection('bids').doc(previousBidId).get()
@@ -465,44 +723,95 @@ export async function handlePlaceBid(request, response) {
   })
 }
 
-async function createCheckoutSession({ agreementIds, buyerEmail, items, metadata, expiresAt }) {
+async function createCheckoutSession({
+  agreementIds,
+  buyerEmail,
+  clientReferenceId,
+  expiresAt,
+  idempotencyKey,
+  items,
+  metadata,
+}) {
   const stripe = getStripe()
   if (!stripe) {
-    return { id: '', url: '', warning: 'Stripe is not configured.' }
+    throw new Error('Stripe is not configured.')
   }
-
-  const paymentMethodTypes = (process.env.STRIPE_PAYMENT_METHOD_TYPES || '')
-    .split(',')
-    .map((method) => method.trim())
-    .filter(Boolean)
 
   const sessionPayload = {
     cancel_url: process.env.STRIPE_CANCEL_URL || 'https://stockroomnj.com/shop?checkout=cancel',
+    client_reference_id: clientReferenceId,
     customer_email: buyerEmail,
+    expires_at: expiresAt,
     line_items: items,
     metadata: {
       agreement_ids: agreementIds.join(','),
       ...metadata,
     },
     mode: 'payment',
+    payment_intent_data: {
+      metadata: {
+        order_id: clientReferenceId,
+        user_id: metadata.user_id || '',
+      },
+    },
     success_url: process.env.STRIPE_SUCCESS_URL || 'https://stockroomnj.com/shop?checkout=success',
   }
 
-  if (paymentMethodTypes.length > 0) {
-    sessionPayload.payment_method_types = paymentMethodTypes
-  }
+  return stripe.checkout.sessions.create(sessionPayload, { idempotencyKey })
+}
 
-  if (expiresAt) {
-    sessionPayload.expires_at = expiresAt
+function clearedReservationFields() {
+  return {
+    reservationExpiresAt: admin.firestore.FieldValue.delete(),
+    reservedBy: admin.firestore.FieldValue.delete(),
+    reservedOrderId: admin.firestore.FieldValue.delete(),
   }
+}
 
-  return stripe.checkout.sessions.create(sessionPayload)
+export async function releaseDirectOrderReservations(orderId, nextStatus = 'failed') {
+  const orderRef = db.collection('orders').doc(orderId)
+
+  await db.runTransaction(async (transaction) => {
+    const orderSnapshot = await transaction.get(orderRef)
+    if (!orderSnapshot.exists) return
+
+    const order = orderSnapshot.data()
+    const productIds = Array.isArray(order.reservationProductIds)
+      ? order.reservationProductIds
+      : (order.items || []).map((item) => item.productId).filter(Boolean)
+    const productRefs = productIds.map((productId) => db.collection('products').doc(productId))
+    const productSnapshots = []
+
+    for (const productRef of productRefs) {
+      productSnapshots.push(await transaction.get(productRef))
+    }
+
+    productSnapshots.forEach((productSnapshot, index) => {
+      if (!productSnapshot.exists) return
+      const product = productSnapshot.data()
+      if (product.status === 'reserved' && product.reservedOrderId === orderId) {
+        transaction.update(productRefs[index], {
+          ...clearedReservationFields(),
+          status: 'published',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      }
+    })
+
+    if (!['paid', 'paid_pending_fulfillment'].includes(order.status)) {
+      transaction.update(orderRef, {
+        reservationExpiresAt: admin.firestore.FieldValue.delete(),
+        status: nextStatus,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+    }
+  })
 }
 
 export async function handleCreateCheckoutSession(request, response) {
   const payload = body(request)
   const userId = requiredString(payload, 'user_id')
-  const buyerEmail = requiredString(payload, 'buyer_email')
+  const buyerEmail = normalizeEmail(requiredString(payload, 'buyer_email'))
   const checkoutMode = requiredString(payload, 'checkout_mode')
   const agreementIds = Array.isArray(payload.agreement_ids) ? payload.agreement_ids : []
   const cartItems = Array.isArray(payload.items) ? payload.items : []
@@ -514,7 +823,14 @@ export async function handleCreateCheckoutSession(request, response) {
   }
 
   if (checkoutMode === 'account') {
-    await assertUserRequest(request, userId)
+    const decoded = await assertUserRequest(request, userId)
+    if (!decoded.email || normalizeEmail(decoded.email) !== buyerEmail) {
+      sendJson(response, 401, { error: 'Account email does not match this checkout.' })
+      return
+    }
+  } else if (!userId.startsWith('guest:') || !verifyGuestSession(userId, buyerEmail, payload.guest_token)) {
+    sendJson(response, 401, { error: 'Invalid or missing guest session token.' })
+    return
   }
 
   if (cartItems.length === 0) {
@@ -571,7 +887,6 @@ export async function handleCreateCheckoutSession(request, response) {
     fulfillmentStatus = 'pending_ready'
   }
 
-  const lineItems = []
   const checkoutProductIds = new Set()
 
   for (const item of cartItems) {
@@ -588,64 +903,99 @@ export async function handleCreateCheckoutSession(request, response) {
     }
 
     checkoutProductIds.add(productId)
-    const productSnapshot = await db.collection('products').doc(productId).get()
-
-    if (!productSnapshot.exists) {
-      sendJson(response, 404, { error: `Product ${productId} was not found.` })
-      return
-    }
-
-    const product = productSnapshot.data()
-
-    if (product.status !== 'published' || product.saleMode === 'auction') {
-      sendJson(response, 400, { error: `${product.name || productId} is not available for direct checkout.` })
-      return
-    }
-
-    lineItems.push({
-      price_data: {
-        currency: 'usd',
-        product_data: {
-          name: product.name || productId,
-        },
-        unit_amount: cents(product.price),
-      },
-      quantity: 1,
-    })
   }
 
   const orderRef = db.collection('orders').doc()
-  const orderData = {
-    amount: dollars(lineItems.reduce((sum, item) => sum + item.price_data.unit_amount * item.quantity, 0)),
-    buyerEmail,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    status: 'pending_payment',
-    userId,
-    checkoutMode,
-    fulfillmentMethod,
-    fulfillmentStatus,
-    customerName,
-    customerPhone,
-    items: cartItems.map((item, idx) => ({
-      productId: item.product_id,
-      productName: lineItems[idx].price_data.product_data.name,
-      amount: dollars(lineItems[idx].price_data.unit_amount),
-    })),
-  }
+  const productIds = [...checkoutProductIds]
+  const productRefs = productIds.map((productId) => db.collection('products').doc(productId))
+  const stripeExpiresAt = Math.floor(Date.now() / 1000) + DIRECT_CHECKOUT_EXPIRATION_SECONDS
+  const provisionalExpiration = admin.firestore.Timestamp.fromMillis(stripeExpiresAt * 1000)
+  let lineItems = []
 
-  if (fulfillmentMethod === 'shipping') {
-    orderData.shippingAddress = normalizedShippingAddress
-  } else {
-    orderData.pickupLocation = pickupLocation
-    orderData.pickupStatus = pickupStatus
-  }
+  try {
+    await db.runTransaction(async (transaction) => {
+      const productSnapshots = []
+      for (const productRef of productRefs) {
+        productSnapshots.push(await transaction.get(productRef))
+      }
 
-  if (lineItems.length > 0) {
-    orderData.productId = cartItems[0].product_id
-    orderData.productName = lineItems[0].price_data.product_data.name
-  }
+      const nowMillis = Date.now()
+      lineItems = productSnapshots.map((productSnapshot, index) => {
+        const productId = productIds[index]
+        if (!productSnapshot.exists) {
+          throw requestError(`Product ${productId} was not found.`, 404)
+        }
 
-  await orderRef.set(orderData)
+        const product = productSnapshot.data()
+        const reservationExpiresAt = product.reservationExpiresAt?.toMillis?.() ?? 0
+        const isExpiredReservation = product.status === 'reserved' && reservationExpiresAt <= nowMillis
+        const isAvailable = product.status === 'published' || isExpiredReservation
+
+        if (!isAvailable || product.saleMode === 'auction') {
+          const status = product.status === 'reserved' ? 409 : 400
+          throw requestError(`${product.name || productId} is not available for direct checkout.`, status)
+        }
+
+        const unitAmount = cents(product.price)
+        if (!Number.isInteger(unitAmount) || unitAmount <= 0) {
+          throw requestError(`${product.name || productId} does not have a valid checkout price.`)
+        }
+
+        return {
+          price_data: {
+            currency: 'usd',
+            product_data: { name: product.name || productId },
+            unit_amount: unitAmount,
+          },
+          quantity: 1,
+        }
+      })
+
+      const orderItems = productIds.map((productId, index) => ({
+        amount: dollars(lineItems[index].price_data.unit_amount),
+        productId,
+        productName: lineItems[index].price_data.product_data.name,
+      }))
+      const orderData = {
+        amount: dollars(lineItems.reduce((sum, item) => sum + item.price_data.unit_amount, 0)),
+        buyerEmail,
+        checkoutMode,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        customerName,
+        customerPhone,
+        fulfillmentMethod,
+        fulfillmentStatus,
+        items: orderItems,
+        productId: productIds[0],
+        productName: orderItems[0].productName,
+        reservationExpiresAt: provisionalExpiration,
+        reservationProductIds: productIds,
+        status: 'pending_payment',
+        userId,
+      }
+
+      if (fulfillmentMethod === 'shipping') {
+        orderData.shippingAddress = normalizedShippingAddress
+      } else {
+        orderData.pickupLocation = pickupLocation
+        orderData.pickupStatus = pickupStatus
+      }
+
+      transaction.set(orderRef, orderData)
+      productRefs.forEach((productRef) => {
+        transaction.update(productRef, {
+          reservationExpiresAt: provisionalExpiration,
+          reservedBy: userId,
+          reservedOrderId: orderRef.id,
+          status: 'reserved',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      })
+    })
+  } catch (error) {
+    sendJson(response, error.status || 400, { error: error.message || 'Could not reserve checkout inventory.' })
+    return
+  }
 
   const metadataPayload = {
     checkout_mode: checkoutMode,
@@ -658,21 +1008,81 @@ export async function handleCreateCheckoutSession(request, response) {
     metadataPayload.customer_phone = customerPhone.substring(0, 100)
   }
 
-  const session = await createCheckoutSession({
-    agreementIds,
-    buyerEmail,
-    items: lineItems,
-    metadata: metadataPayload,
-  })
-
-  if (session.id) {
-    await orderRef.update({
-      stripeCheckoutSessionId: session.id,
-      stripeCheckoutUrl: session.url,
+  let session
+  try {
+    session = await createCheckoutSession({
+      agreementIds,
+      buyerEmail,
+      clientReferenceId: orderRef.id,
+      expiresAt: stripeExpiresAt,
+      idempotencyKey: `direct-checkout-${orderRef.id}`,
+      items: lineItems,
+      metadata: metadataPayload,
     })
+  } catch (error) {
+    await releaseDirectOrderReservations(orderRef.id, 'failed')
+    sendJson(response, 503, { error: error.message || 'Could not create payment checkout.' })
+    return
   }
 
-  sendJson(response, 200, { id: session.id, url: session.url, warning: session.warning })
+  if (!Number.isInteger(session.expires_at)) {
+    try {
+      await getStripe().checkout.sessions.expire(session.id)
+      await releaseDirectOrderReservations(orderRef.id, 'failed')
+    } catch (cleanupError) {
+      console.error(`Could not clean up Stripe session ${session.id} with an invalid expiration:`, cleanupError.message)
+    }
+    sendJson(response, 500, { error: 'Stripe Checkout did not return a valid expiration.' })
+    return
+  }
+
+  const actualExpiration = admin.firestore.Timestamp.fromMillis(session.expires_at * 1000)
+  try {
+    await db.runTransaction(async (transaction) => {
+      const orderSnapshot = await transaction.get(orderRef)
+      const productSnapshots = []
+      for (const productRef of productRefs) {
+        productSnapshots.push(await transaction.get(productRef))
+      }
+
+      if (!orderSnapshot.exists || productSnapshots.some((snapshot) => !snapshot.exists)) {
+        throw new Error('Reserved checkout records could not be synchronized.')
+      }
+      if (productSnapshots.some((snapshot) => snapshot.data().reservedOrderId !== orderRef.id)) {
+        throw new Error('Checkout reservation ownership changed before payment setup completed.')
+      }
+
+      transaction.update(orderRef, {
+        reservationExpiresAt: actualExpiration,
+        stripeCheckoutExpiresAt: actualExpiration,
+        stripeCheckoutSessionId: session.id,
+        stripeCheckoutUrl: session.url,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      productRefs.forEach((productRef) => {
+        transaction.update(productRef, {
+          reservationExpiresAt: actualExpiration,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      })
+    })
+  } catch (error) {
+    let stripeSessionExpired = false
+    try {
+      await getStripe().checkout.sessions.expire(session.id)
+      stripeSessionExpired = true
+    } catch (expireError) {
+      console.error(`Could not expire Stripe session ${session.id} after reservation sync failure:`, expireError.message)
+    }
+
+    if (stripeSessionExpired) {
+      await releaseDirectOrderReservations(orderRef.id, 'failed')
+    }
+    sendJson(response, 500, { error: error.message || 'Could not synchronize checkout reservation.' })
+    return
+  }
+
+  sendJson(response, 200, { id: session.id, url: session.url })
 }
 
 export async function handleApproveBid(request, response) {
@@ -892,6 +1302,33 @@ export async function handleUpdateShipping(request, response) {
   sendJson(response, 200, { success: true, orderId })
 }
 
+async function assertOrderRequest(request, orderRef, orderData, payload = {}) {
+  if (orderData.bidId) {
+    if ((orderData.failedTokenAttempts || 0) >= 5) {
+      throw requestError('Too many failed payment link attempts. Please contact support.', 429)
+    }
+    const token = String(payload.token || '').trim()
+    const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex') : ''
+    if (!tokenHash || tokenHash !== orderData.paymentLinkTokenHash) {
+      if ((orderData.failedTokenAttempts || 0) < 5) {
+        await orderRef.update({ failedTokenAttempts: admin.firestore.FieldValue.increment(1) })
+      }
+      throw requestError('Invalid payment link token.', 401)
+    }
+    return
+  }
+
+  if (orderData.userId?.startsWith('guest:')) {
+    const guestToken = payload.guest_token || request.headers['x-guest-token']
+    if (!verifyGuestSession(orderData.userId, orderData.buyerEmail, guestToken)) {
+      throw requestError('Invalid or missing guest session token.', 401)
+    }
+    return
+  }
+
+  await assertUserRequest(request, orderData.userId)
+}
+
 export async function handleGetOrderDetails(request, response) {
   const orderId = String(request.query.order_id || '').trim()
 
@@ -900,7 +1337,8 @@ export async function handleGetOrderDetails(request, response) {
     return
   }
 
-  const orderSnap = await db.collection('orders').doc(orderId).get()
+  const orderRef = db.collection('orders').doc(orderId)
+  const orderSnap = await orderRef.get()
 
   if (!orderSnap.exists) {
     sendJson(response, 404, { error: 'Order not found.' })
@@ -908,6 +1346,13 @@ export async function handleGetOrderDetails(request, response) {
   }
 
   const order = orderSnap.data()
+  try {
+    await assertOrderRequest(request, orderRef, order, request.query)
+  } catch (error) {
+    sendJson(response, error.status || 401, { error: error.message || 'Order authorization failed.' })
+    return
+  }
+
   sendJson(response, 200, {
     id: orderSnap.id,
     amount: order.amount,
@@ -943,6 +1388,12 @@ export async function handleSelectFulfillment(request, response) {
   }
 
   const orderData = orderSnap.data()
+  try {
+    await assertOrderRequest(request, orderRef, orderData, payload)
+  } catch (error) {
+    sendJson(response, error.status || 401, { error: error.message || 'Order authorization failed.' })
+    return
+  }
 
   if (orderData.status !== 'approved_awaiting_payment' && orderData.status !== 'awaiting_payment' && orderData.status !== 'paid_pending_fulfillment' && orderData.status !== 'pending_payment') {
     sendJson(response, 400, { error: `Order fulfillment cannot be modified in status: ${orderData.status}` })
@@ -1039,11 +1490,6 @@ export async function handleSelectFulfillment(request, response) {
       const cancelUrl = process.env.STRIPE_CANCEL_URL || `${appUrl}/shop?checkout=cancel`
       const successUrl = process.env.STRIPE_SUCCESS_URL || `${appUrl}/shop?checkout=success`
 
-      const paymentMethodTypes = (process.env.STRIPE_PAYMENT_METHOD_TYPES || '')
-        .split(',')
-        .map((method) => method.trim())
-        .filter(Boolean)
-
       const sessionPayload = {
         cancel_url: cancelUrl,
         customer_email: orderData.buyerEmail,
@@ -1070,15 +1516,16 @@ export async function handleSelectFulfillment(request, response) {
           checkoutMode: 'approved_bid',
           fulfillment_method: fulfillmentMethod,
         },
+        payment_intent_data: {
+          metadata: {
+            order_id: orderId,
+          },
+        },
         after_expiration: {
           recovery: {
             enabled: true,
           },
         },
-      }
-
-      if (paymentMethodTypes.length > 0) {
-        sessionPayload.payment_method_types = paymentMethodTypes
       }
 
       session = await stripe.checkout.sessions.create(sessionPayload)
@@ -1158,6 +1605,10 @@ export async function finalizeOrderPayment(orderId, paymentIntentId, session) {
       return
     }
 
+    if (!['awaiting_payment', 'pending_payment', 'approved_awaiting_payment'].includes(orderData.status)) {
+      throw new Error(`Order is not in an awaiting payment status. Current status: ${orderData.status}`)
+    }
+
     if (session) {
       const sessionAmount = session.amount_total ? dollars(session.amount_total) : 0
       const sessionCurrency = (session.currency || '').toLowerCase()
@@ -1170,20 +1621,31 @@ export async function finalizeOrderPayment(orderId, paymentIntentId, session) {
       if (sessionCurrency !== expectedCurrency) {
         throw new Error(`Currency mismatch: Stripe session has ${sessionCurrency}, order has ${expectedCurrency}`)
       }
-      if (orderData.status !== 'awaiting_payment' && orderData.status !== 'pending_payment' && orderData.status !== 'approved_awaiting_payment') {
-        throw new Error(`Order is not in an awaiting payment status. Current status: ${orderData.status}`)
-      }
+    }
 
-      // Check product is reserved
-      const productRef = db.collection('products').doc(orderData.productId)
-      const productSnap = await transaction.get(productRef)
-      if (!productSnap.exists) {
-        throw new Error('Product not found.')
-      }
-      const product = productSnap.data()
-      if (orderData.bidId && product.auctionStatus !== 'approved_awaiting_payment') {
+    const productIds = Array.isArray(orderData.items) && orderData.items.length > 0
+      ? orderData.items.map((item) => item.productId)
+      : [orderData.productId].filter(Boolean)
+    const productRefs = productIds.map((productId) => db.collection('products').doc(productId))
+    const productSnapshots = []
+    for (const productRef of productRefs) {
+      productSnapshots.push(await transaction.get(productRef))
+    }
+
+    if (productSnapshots.some((productSnapshot) => !productSnapshot.exists)) {
+      throw new Error('A product in this order was not found.')
+    }
+
+    if (orderData.bidId) {
+      const product = productSnapshots[0]?.data()
+      if (!product || product.auctionStatus !== 'approved_awaiting_payment') {
         throw new Error('Product is no longer reserved for this approved bid.')
       }
+    } else if (productSnapshots.some((productSnapshot) => {
+      const product = productSnapshot.data()
+      return product.status !== 'reserved' || product.reservedOrderId !== orderId
+    })) {
+      throw new Error('One or more products are no longer reserved for this order.')
     }
 
     if (orderData.fulfillmentMethod === 'pending_customer_selection') {
@@ -1201,14 +1663,16 @@ export async function finalizeOrderPayment(orderId, paymentIntentId, session) {
       status: 'paid',
       confirmationEmailSent: true,
       paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reservationExpiresAt: admin.firestore.FieldValue.delete(),
       stripePaymentIntentId: paymentIntentId || orderData.stripePaymentIntentId || '',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     })
 
     // Mark products as sold
     if (orderData.items && Array.isArray(orderData.items)) {
-      for (const item of orderData.items) {
-        transaction.update(db.collection('products').doc(item.productId), {
+      for (const productRef of productRefs) {
+        transaction.update(productRef, {
+          ...(!orderData.bidId ? clearedReservationFields() : {}),
           status: 'sold',
           soldAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1216,6 +1680,7 @@ export async function finalizeOrderPayment(orderId, paymentIntentId, session) {
       }
     } else if (orderData.productId) {
       const updatePayload = {
+        ...(!orderData.bidId ? clearedReservationFields() : {}),
         status: 'sold',
         soldAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1269,9 +1734,25 @@ export async function finalizeOrderPayment(orderId, paymentIntentId, session) {
   }
 }
 
-async function handleOrderPaymentFailed(orderId, isExpiration) {
+async function handleOrderPaymentFailed(orderId, isExpiration, isTerminal = false) {
   if (!orderId) return
   const orderRef = db.collection('orders').doc(orderId)
+  const existingOrder = await orderRef.get()
+
+  if (!existingOrder.exists) {
+    console.log(`Order ${orderId} does not exist for failure update.`)
+    return
+  }
+
+  const existingOrderData = existingOrder.data()
+  if (!existingOrderData.bidId) {
+    if (isExpiration || isTerminal) {
+      await releaseDirectOrderReservations(orderId, isExpiration ? 'expired' : 'failed')
+    } else {
+      console.log(`Direct order ${orderId} payment attempt failed; reservation remains until Checkout expires.`)
+    }
+    return
+  }
 
   await db.runTransaction(async (transaction) => {
     const orderSnap = await transaction.get(orderRef)
@@ -1292,20 +1773,17 @@ async function handleOrderPaymentFailed(orderId, isExpiration) {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     })
 
-    // For auction orders, revert the product and bid status so they can be re-approved/re-bid
-    if (orderData.bidId) {
-      const bidRef = db.collection('bids').doc(orderData.bidId)
-      transaction.update(bidRef, {
-        status: 'pending_admin_approval',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      })
+    const bidRef = db.collection('bids').doc(orderData.bidId)
+    transaction.update(bidRef, {
+      status: 'pending_admin_approval',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
 
-      const productRef = db.collection('products').doc(orderData.productId)
-      transaction.update(productRef, {
-        auctionStatus: 'open',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      })
-    }
+    const productRef = db.collection('products').doc(orderData.productId)
+    transaction.update(productRef, {
+      auctionStatus: 'open',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
   })
 }
 
@@ -1338,6 +1816,7 @@ async function handleStripeWebhook(request, response) {
 
   try {
     switch (event.type) {
+      case 'checkout.session.async_payment_succeeded':
       case 'checkout.session.completed': {
         const session = event.data.object
         if (session.payment_status === 'paid') {
@@ -1349,6 +1828,12 @@ async function handleStripeWebhook(request, response) {
         } else {
           console.log(`Checkout session completed but payment_status is ${session.payment_status}`)
         }
+        break
+      }
+      case 'checkout.session.async_payment_failed': {
+        const session = event.data.object
+        const orderId = session.client_reference_id || session.metadata?.order_id || session.metadata?.orderId
+        await handleOrderPaymentFailed(orderId, false, true)
         break
       }
       case 'payment_intent.succeeded': {
@@ -1379,6 +1864,65 @@ async function handleStripeWebhook(request, response) {
     sendJson(response, 500, { error: err.message || 'Error processing webhook event' })
   }
 }
+
+export async function releaseExpiredReservationsHandler() {
+  const now = admin.firestore.Timestamp.now()
+  const expiredOrders = await db.collection('orders')
+    .where('reservationExpiresAt', '<=', now)
+    .limit(100)
+    .get()
+  const stripe = getStripe()
+
+  for (const orderSnapshot of expiredOrders.docs) {
+    const order = orderSnapshot.data()
+    if (order.bidId || order.status !== 'pending_payment') continue
+
+    if (!order.stripeCheckoutSessionId) {
+      await releaseDirectOrderReservations(orderSnapshot.id, 'expired')
+      continue
+    }
+
+    if (!stripe) {
+      console.error(`Stripe is not configured; leaving reservation ${orderSnapshot.id} intact.`)
+      continue
+    }
+
+    try {
+      const session = await stripe.checkout.sessions.retrieve(order.stripeCheckoutSessionId)
+
+      if (session.status === 'complete' && session.payment_status === 'paid') {
+        const paymentIntentId = typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id
+        await finalizeOrderPayment(orderSnapshot.id, paymentIntentId, session)
+      } else if (session.status === 'expired') {
+        await releaseDirectOrderReservations(orderSnapshot.id, 'expired')
+      } else if (session.status === 'open') {
+        await stripe.checkout.sessions.expire(session.id)
+        await releaseDirectOrderReservations(orderSnapshot.id, 'expired')
+      }
+      // Completed sessions with a pending asynchronous payment remain reserved.
+    } catch (error) {
+      console.error(`Could not reconcile expired reservation ${orderSnapshot.id}:`, error.message)
+    }
+  }
+
+  const expiredRateLimits = await db.collection('rate_limits')
+    .where('expiresAt', '<=', now)
+    .limit(400)
+    .get()
+
+  if (!expiredRateLimits.empty) {
+    const batch = db.batch()
+    expiredRateLimits.docs.forEach((document) => batch.delete(document.ref))
+    await batch.commit()
+  }
+}
+
+export const releaseExpiredReservations = onSchedule({
+  schedule: 'every 5 minutes',
+  secrets: ['STRIPE_SECRET_KEY'],
+}, releaseExpiredReservationsHandler)
 
 async function getAndValidateApprovedBidOrder(orderId, token) {
   if (!orderId || !token) {
@@ -1605,11 +2149,6 @@ export async function handleApprovedBidCheckout(request, response) {
       ? new URL(process.env.STRIPE_SUCCESS_URL).origin 
       : 'https://stockroomnj.com'
 
-    const paymentMethodTypes = (process.env.STRIPE_PAYMENT_METHOD_TYPES || '')
-      .split(',')
-      .map((method) => method.trim())
-      .filter(Boolean)
-
     const sessionPayload = {
       cancel_url: `${appUrl}/pay/approved-bid/${orderId}?token=${token}&checkout=cancel`,
       customer_email: orderData.buyerEmail,
@@ -1636,15 +2175,16 @@ export async function handleApprovedBidCheckout(request, response) {
         checkoutMode: 'approved_bid',
         fulfillment_method: updatedFulfillmentMethod,
       },
+      payment_intent_data: {
+        metadata: {
+          order_id: orderId,
+        },
+      },
       after_expiration: {
         recovery: {
           enabled: true,
         },
       },
-    }
-
-    if (paymentMethodTypes.length > 0) {
-      sessionPayload.payment_method_types = paymentMethodTypes
     }
 
     session = await stripe.checkout.sessions.create(sessionPayload)
@@ -1789,10 +2329,13 @@ const routes = {
 
 // Note: EMAIL_FROM and EMAIL_REPLY_TO are normal runtime env vars,
 // while API keys and tokens are secure secrets.
-export const api = onRequest({
-  secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'POSTMARK_SERVER_TOKEN']
-}, async (request, response) => {
-  applyCors(request, response)
+export async function handleApiRequest(request, response) {
+  const corsAllowed = applyCors(request, response)
+
+  if (!corsAllowed) {
+    response.status(403).send('Forbidden: CORS origin not allowed.')
+    return
+  }
 
   if (request.method === 'OPTIONS') {
     response.status(204).send('')
@@ -1810,9 +2353,13 @@ export const api = onRequest({
   try {
     await handler(request, response)
   } catch (error) {
-    sendJson(response, 400, { error: error.message || 'Request failed.' })
+    sendJson(response, error.status || 400, { error: error.message || 'Request failed.' })
   }
-})
+}
+
+export const api = onRequest({
+  secrets: ['GUEST_TOKEN_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'POSTMARK_SERVER_TOKEN']
+}, handleApiRequest)
 
 // Note: EMAIL_FROM and EMAIL_REPLY_TO are normal runtime env vars,
 // while API keys and tokens are secure secrets.

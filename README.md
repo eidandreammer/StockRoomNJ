@@ -43,9 +43,13 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
    Before deploying your functions, you must configure actual sensitive credentials as Firebase Secrets:
    ```bash
    firebase functions:secrets:set POSTMARK_SERVER_TOKEN="your-postmark-server-token"
+   firebase functions:secrets:set GUEST_TOKEN_SECRET="your-high-entropy-guest-token-secret"
    firebase functions:secrets:set STRIPE_SECRET_KEY="your-stripe-secret-key"
    firebase functions:secrets:set STRIPE_WEBHOOK_SECRET="your-stripe-webhook-secret"
    ```
+   `GUEST_TOKEN_SECRET` is used only for signed guest sessions. `STRIPE_SECRET_KEY`
+   is used only by the Stripe SDK. For emulator-only development, place the guest-token
+   secret in `functions/.secret.local`; that file is ignored by Git.
 6. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
 7. Create each staff account in Firebase Console under Authentication.
 8. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
@@ -210,4 +214,3 @@ The production domain must point to Firebase Hosting. If the domain currently ha
 - [ ] Correct Firebase project is selected or passed with `--project stockroomnj-10e7d`
 - [ ] `npm run deploy` completes successfully
 - [ ] Visit the production domain and test `/`, `/shop`, `/admin`, and at least one `/api/**` backed feature
-

@@ -18,6 +18,19 @@ const legalDocumentMimeTypes = new Set([
   'text/markdown',
   'text/plain',
 ])
+const legalDocumentMimeTypesByExtension = {
+  '.md': 'text/markdown',
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+}
+
+export function legalDocumentContentType(file) {
+  const suppliedType = file?.type?.toLowerCase() ?? ''
+  if (legalDocumentMimeTypes.has(suppliedType)) return suppliedType
+
+  const extension = file?.name?.toLowerCase().match(/\.[^.]+$/)?.[0] ?? ''
+  return legalDocumentMimeTypesByExtension[extension] || ''
+}
 
 function sanitizeFileName(fileName) {
   return (fileName || 'legal-document')
@@ -27,11 +40,7 @@ function sanitizeFileName(fileName) {
 }
 
 function legalDocumentValidationError(file) {
-  const extension = file?.name?.toLowerCase().match(/\.[^.]+$/)?.[0] ?? ''
-  const isAllowedType =
-    legalDocumentMimeTypes.has(file?.type ?? '') || ['.md', '.pdf', '.txt'].includes(extension)
-
-  if (!isAllowedType) {
+  if (!legalDocumentContentType(file)) {
     return 'Upload a PDF, Markdown, or text file.'
   }
 
@@ -71,6 +80,10 @@ export async function agreeToLegalDocument({ documentType, user, userId, version
     method: 'POST',
   })
 
+  if (result.guest_token && typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(`guest_token_${(email || '').toLowerCase().trim()}`, result.guest_token)
+  }
+
   return result.agreement_id
 }
 
@@ -88,7 +101,7 @@ export async function uploadLegalDocumentFile({ documentType, file, versionNumbe
   const safeName = sanitizeFileName(file.name)
   const documentRef = ref(storage, `legal-documents/${documentType}/${versionNumber}/${Date.now()}-${safeName}`)
   const uploadResult = await uploadBytes(documentRef, file, {
-    contentType: file.type || 'application/octet-stream',
+    contentType: legalDocumentContentType(file),
   })
 
   return getDownloadURL(uploadResult.ref)

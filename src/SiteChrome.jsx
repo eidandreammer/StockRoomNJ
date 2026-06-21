@@ -409,12 +409,12 @@ function SiteHeader({ currentPage, isFooterVisible }) {
       >
         <div className="header-inner">
           <div className="header-left">
-            <nav className="header-social" aria-label="Social media">
+            <nav className="header-social-nav" aria-label="Social media">
               {socialLinks.map((social) => (
                 <a
                   key={social.label}
                   aria-label={social.label}
-                  className="icon-button social-link"
+                  className="icon-button header-social-btn"
                   href={social.href}
                   rel="noreferrer"
                   target="_blank"
@@ -536,6 +536,20 @@ function SiteHeader({ currentPage, isFooterVisible }) {
               <Icon name="profile" />
             </button>
           </nav>
+          <div className="drawer-social-nav" aria-label="Social media">
+            {socialLinks.map((social) => (
+              <a
+                key={social.label}
+                aria-label={social.label}
+                className="icon-button header-social-btn"
+                href={social.href}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <Icon name={social.icon} />
+              </a>
+            ))}
+          </div>
           <p className="drawer-note">Open Monday-Friday in Wallington.</p>
         </aside>
       </div>
@@ -665,15 +679,20 @@ function SiteShell({ children, currentPage = 'home' }) {
       newUrl.searchParams.delete('checkout_bid_order')
       window.history.replaceState(null, '', newUrl.toString())
     } else if (orderId && checkoutStatus === 'success') {
-      apiRequest(`/api/orders/details?order_id=${orderId}`)
-        .then((order) => {
-          if (order.fulfillmentMethod === 'pending_customer_selection') {
-            setBidCheckoutOrderId(orderId)
-          }
-        })
-        .catch((err) => {
-          console.error('Error checking order fulfillment details:', err)
-        })
+      const loadOrder = async () => {
+        const currentUser = auth?.currentUser
+        const headers = currentUser
+          ? { Authorization: `Bearer ${await currentUser.getIdToken()}` }
+          : {}
+        const order = await apiRequest(`/api/orders/details?order_id=${orderId}`, { headers })
+        if (order.fulfillmentMethod === 'pending_customer_selection') {
+          setBidCheckoutOrderId(orderId)
+        }
+      }
+
+      loadOrder().catch((err) => {
+        console.error('Error checking order fulfillment details:', err)
+      })
 
       const newUrl = new URL(window.location)
       newUrl.searchParams.delete('order_id')

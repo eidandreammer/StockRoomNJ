@@ -1,8 +1,8 @@
-/* eslint-disable no-undef */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import admin from 'firebase-admin'
 import Stripe from 'stripe'
 import crypto from 'node:crypto'
+import process from 'node:process'
 import {
   templates,
   escapeHtml,
@@ -14,6 +14,8 @@ import {
 // Set Stripe environment variables for checkout creation
 process.env.STRIPE_SECRET_KEY = 'sk_test_mock'
 process.env.STRIPE_SUCCESS_URL = 'https://stockroomnj.com/shop?checkout=success'
+const approvedBidToken = 'approved-bid-test-token'
+const approvedBidTokenHash = crypto.createHash('sha256').update(approvedBidToken).digest('hex')
 
 // Mock firebase-admin completely at the top (hoisted)
 vi.mock('firebase-admin', () => {
@@ -128,9 +130,9 @@ vi.mock('firebase-admin', () => {
   const mockAuth = {
     verifyIdToken: vi.fn((token) => {
       if (token === 'admin-token') {
-        return Promise.resolve({ uid: 'admin-uid' })
+        return Promise.resolve({ uid: 'admin-uid', email: 'admin@example.com' })
       }
-      return Promise.resolve({ uid: 'test-user-uid' })
+      return Promise.resolve({ uid: 'test-user-uid', email: 'test@example.com' })
     }),
   }
 
@@ -138,6 +140,8 @@ vi.mock('firebase-admin', () => {
     initializeApp: vi.fn(),
     firestore: Object.assign(() => mockFirestore, {
       FieldValue: {
+        delete: () => 'MOCK_DELETE_FIELD',
+        increment: (value) => value,
         serverTimestamp: () => 'MOCK_SERVER_TIMESTAMP',
       },
       Timestamp: {
@@ -164,8 +168,14 @@ vi.mock('firebase-admin', () => {
 
 // Mock Stripe API correctly as a class
 vi.mock('stripe', () => {
-  const mockCreate = vi.fn(() => Promise.resolve({ id: 'sess_stripe_123', url: 'https://checkout.stripe.com/sess_123' }))
+  const mockCreate = vi.fn((payload) => Promise.resolve({
+    expires_at: payload.expires_at,
+    id: 'sess_stripe_123',
+    url: 'https://checkout.stripe.com/sess_123',
+  }))
   const mockConstructEvent = vi.fn(() => ({ type: 'checkout.session.completed', data: { object: {} } }))
+  const mockExpire = vi.fn(() => Promise.resolve({ status: 'expired' }))
+  const mockRetrieve = vi.fn()
 
   class MockStripe {
     constructor(key) {
@@ -173,6 +183,8 @@ vi.mock('stripe', () => {
       this.checkout = {
         sessions: {
           create: mockCreate,
+          expire: mockExpire,
+          retrieve: mockRetrieve,
         }
       }
       this.webhooks = {
@@ -183,6 +195,8 @@ vi.mock('stripe', () => {
 
   MockStripe.mockCreate = mockCreate
   MockStripe.mockConstructEvent = mockConstructEvent
+  MockStripe.mockExpire = mockExpire
+  MockStripe.mockRetrieve = mockRetrieve
 
   return { default: MockStripe }
 })
@@ -436,7 +450,9 @@ describe('Approved Bid & Fulfillment selection', () => {
     // Seed existing order
     admin.getDbState().orders['order_bid_123'] = {
       amount: 100,
+      bidId: 'bid_123',
       buyerEmail: 'winner@example.com',
+      paymentLinkTokenHash: approvedBidTokenHash,
       productName: 'Bid Item',
       status: 'approved_awaiting_payment',
       stripeCheckoutUrl: 'https://stripe.com'
@@ -446,6 +462,7 @@ describe('Approved Bid & Fulfillment selection', () => {
       method: 'POST',
       body: {
         order_id: 'order_bid_123',
+        token: approvedBidToken,
         fulfillment_method: 'shipping',
         customer_name: 'Bid Winner Name',
         shipping_address: {
@@ -526,6 +543,7 @@ describe('Approved Bid & Fulfillment selection', () => {
       status: 'approved_awaiting_payment',
       paymentDueAt: admin.firestore.Timestamp.fromMillis(Date.now() - 10000), // expired 10s ago
       bidId: 'bid_123',
+      paymentLinkTokenHash: approvedBidTokenHash,
       productId: 'prod_123',
     };
 
@@ -533,6 +551,7 @@ describe('Approved Bid & Fulfillment selection', () => {
       method: 'POST',
       body: {
         order_id: 'order_expired',
+        token: approvedBidToken,
         fulfillment_method: 'shipping',
         customer_name: 'Bid Winner Name',
         shipping_address: {
@@ -563,6 +582,7 @@ describe('Approved Bid & Fulfillment selection', () => {
       status: 'approved_awaiting_payment',
       paymentDueAt: admin.firestore.Timestamp.fromMillis(Date.now() + 15 * 60 * 1000), // expiring in 15 mins
       bidId: 'bid_123',
+      paymentLinkTokenHash: approvedBidTokenHash,
       productId: 'prod_123',
     };
 
@@ -570,6 +590,7 @@ describe('Approved Bid & Fulfillment selection', () => {
       method: 'POST',
       body: {
         order_id: 'order_close',
+        token: approvedBidToken,
         fulfillment_method: 'shipping',
         customer_name: 'Bid Winner Name',
         shipping_address: {
@@ -601,6 +622,7 @@ describe('Approved Bid & Fulfillment selection', () => {
       status: 'approved_awaiting_payment',
       paymentDueAt: admin.firestore.Timestamp.fromMillis(targetDueTime),
       bidId: 'bid_123',
+      paymentLinkTokenHash: approvedBidTokenHash,
       productId: 'prod_123',
     };
 
@@ -608,6 +630,7 @@ describe('Approved Bid & Fulfillment selection', () => {
       method: 'POST',
       body: {
         order_id: 'order_valid',
+        token: approvedBidToken,
         fulfillment_method: 'pickup',
         customer_name: 'Winner Name',
       },

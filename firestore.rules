@@ -7,6 +7,47 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function optionalString(data, key) {
+      return !(key in data) || data[key] is string;
+    }
+
+    function validAddress(address) {
+      return address is map
+        && address.keys().hasOnly(['street', 'city', 'state', 'zip', 'country', 'phone', 'sameAsShipping'])
+        && optionalString(address, 'street')
+        && optionalString(address, 'city')
+        && optionalString(address, 'state')
+        && optionalString(address, 'zip')
+        && optionalString(address, 'country')
+        && optionalString(address, 'phone')
+        && (!('sameAsShipping' in address) || address.sameAsShipping is bool);
+    }
+
+    function validNotifications(notifications) {
+      return notifications is map
+        && notifications.keys().hasOnly(['biddingUpdates', 'newsletter', 'purchaseReceipts'])
+        && (!('biddingUpdates' in notifications) || notifications.biddingUpdates is bool)
+        && (!('newsletter' in notifications) || notifications.newsletter is bool)
+        && (!('purchaseReceipts' in notifications) || notifications.purchaseReceipts is bool);
+    }
+
+    function validUserProfile(data) {
+      return data.keys().hasOnly([
+          'displayName', 'email', 'phone', 'shippingAddress', 'billingAddress', 'notifications', 'createdAt'
+        ])
+        && optionalString(data, 'displayName')
+        && optionalString(data, 'email')
+        && optionalString(data, 'phone')
+        && (!('shippingAddress' in data) || validAddress(data.shippingAddress))
+        && (!('billingAddress' in data) || validAddress(data.billingAddress))
+        && (!('notifications' in data) || validNotifications(data.notifications))
+        && (!('createdAt' in data) || data.createdAt is timestamp || data.createdAt is string);
+    }
+
     match /events/{eventId} {
       allow get, list: if isAdmin() || resource.data.status == 'published';
       allow create, update, delete: if isAdmin();
@@ -51,7 +92,9 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if isAdmin() || isOwner(uid);
+      allow create, update: if isAdmin() || (isOwner(uid) && validUserProfile(request.resource.data));
+      allow delete: if isAdmin() || isOwner(uid);
     }
 
     match /admins/{uid} {

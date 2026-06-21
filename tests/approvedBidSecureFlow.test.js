@@ -114,6 +114,7 @@ vi.mock('firebase-admin', () => {
     initializeApp: vi.fn(),
     firestore: Object.assign(() => mockFirestore, {
       FieldValue: {
+        delete: () => 'MOCK_DELETE_FIELD',
         serverTimestamp: () => 'MOCK_SERVER_TIMESTAMP',
         increment: (val) => val,
       },

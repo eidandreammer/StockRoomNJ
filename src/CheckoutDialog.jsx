@@ -139,7 +139,13 @@ function CheckoutDialog({ items = [], onClose, subtotal, orderId }) {
 
         let loadedOrderDetails = null
         if (orderId) {
-          loadedOrderDetails = await apiRequest(`/api/orders/details?order_id=${orderId}`)
+          const currentUser = auth?.currentUser
+          const orderHeaders = currentUser
+            ? { Authorization: `Bearer ${await currentUser.getIdToken()}` }
+            : {}
+          loadedOrderDetails = await apiRequest(`/api/orders/details?order_id=${orderId}`, {
+            headers: orderHeaders,
+          })
           if (loadedOrderDetails.buyerEmail) {
             identity.email = loadedOrderDetails.buyerEmail
           }
@@ -206,6 +212,10 @@ function CheckoutDialog({ items = [], onClose, subtotal, orderId }) {
         agreementResults.push(agreementId)
       }
 
+      const guestToken = buyer.checkoutMode === 'guest' && typeof sessionStorage !== 'undefined'
+        ? sessionStorage.getItem(`guest_token_${buyer.email.toLowerCase().trim()}`)
+        : null
+
       const finalFulfillmentData = {
         fulfillment_method: fulfillmentMethod,
         customer_name: fulfillmentMethod === 'pickup' ? contactName.trim() : shippingAddress.full_name.trim(),
@@ -229,6 +239,7 @@ function CheckoutDialog({ items = [], onClose, subtotal, orderId }) {
         const result = await apiRequest('/api/orders/select-fulfillment', {
           body: JSON.stringify({
             order_id: orderId,
+            guest_token: guestToken,
             ...finalFulfillmentData,
           }),
           headers: authHeaders,
@@ -252,6 +263,7 @@ function CheckoutDialog({ items = [], onClose, subtotal, orderId }) {
             agreement_ids: agreementResults,
             buyer_email: buyer.email.trim(),
             checkout_mode: buyer.checkoutMode,
+            guest_token: guestToken,
             items: items.map((item) => ({
               product_id: item.id,
               quantity: 1,

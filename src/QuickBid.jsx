@@ -5,6 +5,7 @@ import { calculateIncrement } from './bidMath'
 import { auth } from './firebase'
 import { getVisitorId } from './legalIdentity'
 import { getFriendlyErrorMessage } from './friendlyErrors'
+import { loadActiveLegalDocuments, agreeToLegalDocument } from './legalDocuments'
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -32,6 +33,7 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
   const [email, setEmail] = useState(auth?.currentUser?.email ?? '')
   const [status, setStatus] = useState('idle')
   const [message, setMessage] = useState('')
+  const [agreed, setAgreed] = useState(false)
 
   useEffect(() => {
     if (!auth) return
@@ -48,10 +50,17 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
   const customValue = Number.parseFloat(customBid)
   const isCustomInvalid = customBid !== '' && (!Number.isFinite(customValue) || customValue < minimumBid)
   const hasEmail = /\S+@\S+\.\S+/.test(email.trim())
+  const isGuest = !auth?.currentUser
 
   const placeBid = async (amount) => {
     if (!product?.id) {
       setMessage('This item is not ready for bidding.')
+      return
+    }
+
+    if (isGuest && !agreed) {
+      setMessage('You must accept the Terms of Service and Privacy Policy before bidding.')
+      setStatus('error')
       return
     }
 
@@ -60,17 +69,72 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
 
     try {
       const user = auth?.currentUser
-      const payload = {
-        bid_amount: amount,
-        buyer_email: email.trim(),
-        product_id: product.id,
-        user_id: user?.uid ?? `guest:${getVisitorId()}`,
+      const visitorId = getVisitorId()
+      const guestUserId = `guest:${visitorId}`
+      const guestEmail = email.trim()
+
+      let guestToken = null
+      const cacheKey = `guest_token_${guestEmail.toLowerCase()}`
+
+      const refreshGuestToken = async () => {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem(cacheKey)
+        }
+
+        const activeDocs = await loadActiveLegalDocuments()
+        for (const doc of activeDocs) {
+          await agreeToLegalDocument({
+            documentType: doc.document_type,
+            user: null,
+            userId: guestUserId,
+            versionNumber: doc.version_number,
+            email: guestEmail,
+            context: { bidding: true },
+          })
+        }
+
+        return typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(cacheKey) : null
       }
 
-      const result = await apiRequest('/api/bids/place', {
+      if (isGuest) {
+        guestToken = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(cacheKey) : null
+
+        if (!guestToken) {
+          guestToken = await refreshGuestToken()
+        }
+      }
+
+      const payload = {
+        bid_amount: amount,
+        buyer_email: guestEmail,
+        product_id: product.id,
+        user_id: user?.uid ?? guestUserId,
+      }
+
+      if (isGuest) {
+        payload.guest_token = guestToken
+      }
+
+      const authHeaders = user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}
+      const submitBid = () => apiRequest('/api/bids/place', {
         body: JSON.stringify(payload),
+        headers: authHeaders,
         method: 'POST',
       })
+
+      let result
+      try {
+        result = await submitBid()
+      } catch (error) {
+        const shouldRefreshGuestToken = isGuest
+          && error?.status === 401
+          && /guest session token/i.test(error?.message || '')
+
+        if (!shouldRefreshGuestToken) throw error
+
+        payload.guest_token = await refreshGuestToken()
+        result = await submitBid()
+      }
 
       setStatus('success')
       setMessage(`Bid placed at ${priceFormatter.format(result.bid.amount)}.`)
@@ -105,7 +169,7 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
       <div className="quick-bid-actions">
         <button
           className="bid-low"
-          disabled={status === 'saving' || !hasEmail}
+          disabled={status === 'saving' || !hasEmail || (isGuest && !agreed)}
           type="button"
           onClick={() => placeBid(minimumBid)}
         >
@@ -113,7 +177,7 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
         </button>
         <button
           className="bid-high"
-          disabled={status === 'saving' || !hasEmail}
+          disabled={status === 'saving' || !hasEmail || (isGuest && !agreed)}
           type="button"
           onClick={() => placeBid(aggressiveBid)}
         >
@@ -131,6 +195,17 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
           onChange={(event) => setEmail(event.target.value)}
         />
       </label>
+      {isGuest && (
+        <label className="quick-bid-consent" style={{ display: 'flex', gap: '8px', alignItems: 'center', margin: '8px 0', fontSize: '0.9em', cursor: 'pointer' }}>
+          <input
+            required
+            type="checkbox"
+            checked={agreed}
+            onChange={(event) => setAgreed(event.target.checked)}
+          />
+          <span>I agree to the <a href="/legal.html" target="_blank" onClick={(e) => e.stopPropagation()}>Terms of Service & Privacy Policy</a></span>
+        </label>
+      )}
       <form
         className="quick-bid-custom"
         onSubmit={(event) => {
@@ -152,7 +227,7 @@ function QuickBid({ className = '', currentPrice, onBidPlaced, product }) {
             onChange={(event) => setCustomBid(event.target.value)}
           />
         </label>
-        <button disabled={status === 'saving' || isCustomInvalid || customBid === '' || !hasEmail} type="submit">
+        <button disabled={status === 'saving' || isCustomInvalid || customBid === '' || !hasEmail || (isGuest && !agreed)} type="submit">
           Bid
         </button>
       </form>

@@ -13,15 +13,15 @@ dist
 dist-ssr
 
 # Environment variables
-.env
-.env.local
-.env.production
-.env.production.local
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/.secret.local
 
 # Credentials & Secrets
-*firebase-adminsdk*.json
-service-account*.json
+**/local-secret*.json
+**/service-account*.json
+**/*firebase-adminsdk*.json
 
 # Editor directories and files
 .vscode/*
@@ -36,4 +36,3 @@ service-account*.json
 
 # Firebase Emulator Data
 emulator-data/
-

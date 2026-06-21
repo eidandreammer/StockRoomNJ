@@ -5,6 +5,16 @@ export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const FULL_IMAGE_QUALITY = 0.9
 const HEIC_EXTENSION_PATTERN = /\.(heic|heif)$/i
 const IMAGE_EXTENSION_PATTERN = /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i
+const IMAGE_MIME_TYPES_BY_EXTENSION = {
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
+}
 const HEIC_MIME_TYPES = new Set(['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'])
 const HEIC_CONVERSION_TIMEOUT_MS = 20000
 const PREVIEW_IMAGE_QUALITY = 0.72
@@ -29,6 +39,16 @@ export function imageValidationError(file) {
   }
 
   return ''
+}
+
+export function productImageContentType(file) {
+  const suppliedType = file?.type?.toLowerCase() ?? ''
+  if (suppliedType.startsWith('image/') && suppliedType !== 'application/octet-stream') {
+    return suppliedType
+  }
+
+  const extension = file?.name?.toLowerCase().match(/\.([^.]+)$/)?.[1] ?? ''
+  return IMAGE_MIME_TYPES_BY_EXTENSION[extension] || ''
 }
 
 function jpegFileName(fileName) {
@@ -230,7 +250,10 @@ export async function uploadProductImage(file, productId, sortOrder = 0) {
   const safeName = sanitizeFileName(uploadFile.name) || 'product-image'
   const orderPrefix = String(sortOrder + 1).padStart(2, '0')
   const imageRef = ref(storage, `products/${productId}/${orderPrefix}-${randomId()}-${safeName}`)
-  const contentType = uploadFile.type || 'image/jpeg'
+  const contentType = productImageContentType(uploadFile)
+  if (!contentType) {
+    throw new Error(`Could not determine an image content type for ${uploadFile.name}.`)
+  }
   const uploadResult = await uploadBytes(imageRef, uploadFile, {
     contentType,
   })
