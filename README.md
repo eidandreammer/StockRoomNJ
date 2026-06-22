@@ -39,7 +39,9 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
    - **DMARC**: Configure a DMARC policy (e.g., `v=DMARC1; p=none; rua=mailto:dmarc-reports@yourdomain.com`).
    - **Custom Sending Domain**: Verify DKIM and Return-Path settings in your DNS zone (e.g. Cloudflare) to optimize deliverability.
 5. **Firebase Configuration**:
-   Configure non-sensitive runtime variables in `functions/.env.stockroomnj-10e7d` (such as `EMAIL_FROM`, `EMAIL_REPLY_TO`, `STRIPE_SUCCESS_URL`, and `STRIPE_CANCEL_URL`).
+   Configure non-sensitive runtime variables in `functions/.env.stockroomnj-10e7d`, including
+   `EMAIL_FROM`, `EMAIL_REPLY_TO`, `APP_BASE_URL=https://stockroomnj.com`,
+   `STRIPE_SUCCESS_URL`, and `STRIPE_CANCEL_URL`.
    Before deploying your functions, you must configure actual sensitive credentials as Firebase Secrets:
    ```bash
    firebase functions:secrets:set POSTMARK_SERVER_TOKEN="your-postmark-server-token"
@@ -50,11 +52,16 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
    `GUEST_TOKEN_SECRET` is used only for signed guest sessions. `STRIPE_SECRET_KEY`
    is used only by the Stripe SDK. For emulator-only development, place the guest-token
    secret in `functions/.secret.local`; that file is ignored by Git.
-6. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
-7. Create each staff account in Firebase Console under Authentication.
-8. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
+   `POSTMARK_SERVER_TOKEN` must remain configured as a Firebase Functions secret;
+   `EMAIL_FROM` and `EMAIL_REPLY_TO` are normal runtime environment variables.
+   Authenticate the Postmark sender/domain used by `EMAIL_FROM` to improve delivery.
+6. Add `stockroomnj.com` to Firebase Authentication's authorized domains so generated
+   password reset links can return to the production app.
+7. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
+8. Create each staff account in Firebase Console under Authentication.
+9. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
    may contain `{ "enabled": true }`; authorization is based on the document existing.
-9. Run `firebase login`, select the project with `firebase use --add`, and deploy the
+10. Run `firebase login`, select the project with `firebase use --add`, and deploy the
    checked-in Firestore and Storage rules with `npm run deploy:rules`.
 
 ### Checkout Fulfillment Flow

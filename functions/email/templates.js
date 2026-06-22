@@ -448,4 +448,33 @@ export const templates = {
       text,
     };
   },
+
+  // Category: security
+  password_reset: (data) => {
+    const name = data.name || 'Collector';
+    const resetLink = safeUrl(data.resetLink);
+    const expiresMinutes = Number(data.expiresMinutes) > 0 ? Number(data.expiresMinutes) : 60;
+
+    assertCritical(data.name, 'name is required for password_reset.');
+    assertCritical(resetLink !== '#', 'resetLink is required for password_reset.');
+
+    const title = 'Reset your Stock Room password';
+    const htmlContent = `
+      <h2 style="color: #0f172a; margin-top: 0; margin-bottom: 16px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">Reset your password</h2>
+      <p style="margin: 0 0 12px 0; line-height: 1.6; color: #475569;">Hi ${escapeHtml(name)},</p>
+      <p style="margin: 0 0 16px 0; line-height: 1.6; color: #475569;">We received a request to reset your password.</p>
+      <p style="margin: 0 0 16px 0; line-height: 1.6; color: #475569;">Click the button below to choose a new password. This link expires in ${escapeHtml(expiresMinutes)} minutes.</p>
+      <div style="text-align: center; margin: 32px 0 24px 0;">
+        <a href="${escapeHtml(resetLink)}" style="background-color: #0068b1; color: #ffffff; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(0, 104, 177, 0.15), 0 2px 4px -1px rgba(0, 104, 177, 0.15);">Reset Password</a>
+      </div>
+      <p style="margin: 0; line-height: 1.6; color: #475569;">If you did not request this, you can safely ignore this email.</p>
+    `;
+    const text = `Hi ${name},\n\nWe received a request to reset your password. Use the link below to choose a new password. This link expires in ${expiresMinutes} minutes.\n\nReset your password: ${resetLink}\n\nIf you did not request this, you can safely ignore this email.`;
+
+    return {
+      subject: title,
+      html: renderLayout(title, htmlContent),
+      text,
+    };
+  },
 };
