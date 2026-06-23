@@ -47,7 +47,6 @@ function GoogleMap() {
     }
 
     const apiKey = decodeKey(
-      import.meta.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
       import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
       ''
     )

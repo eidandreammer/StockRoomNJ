@@ -13,7 +13,7 @@ shop inventory and an event calendar, and `/admin` provides the staff dashboard.
 1. Run `npm install`.
 2. Copy `.env.example` to `.env` and fill in the Firebase web app values.
 3. Create a Google Maps JavaScript API key and set
-   `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `.env` for the storefront location map.
+   `VITE_GOOGLE_MAPS_API_KEY` in `.env` for the storefront location map.
 4. Create a Google reCAPTCHA v2 checkbox key for the deployed admin domain and set
    `VITE_RECAPTCHA_SITE_KEY` in `.env`. Localhost skips this check automatically.
 5. Run `npm run dev`.
@@ -214,3 +214,11 @@ The production domain must point to Firebase Hosting. If the domain currently ha
 - [ ] Correct Firebase project is selected or passed with `--project stockroomnj-10e7d`
 - [ ] `npm run deploy` completes successfully
 - [ ] Visit the production domain and test `/`, `/shop`, `/admin`, and at least one `/api/**` backed feature
+
+---
+
+## Troubleshooting
+
+### Extension-Injected Console Warnings
+
+You may see warnings in your browser console like `inject.js StorageManager settings timeout`. These are not bugs in the StockRoom NJ application. They are injected by browser extensions (e.g., password managers, security extensions, or ad blockers) that modify storage behavior. To confirm that the application is running cleanly without issues, load the website in a clean browser profile or Guest/Incognito window with all extensions disabled.
