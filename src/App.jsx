@@ -23,8 +23,8 @@ const galleryItems = [
     height: 1080,
     type: 'video',
     fullWidth: true,
-    img: '/Images/stock-room-test-vid.mp4',
-    url: '/Images/stock-room-test-vid.mp4',
+    img: '/Images/stock-room-test-vid.mp4?v=2',
+    url: '/Images/stock-room-test-vid.mp4?v=2',
   },
   {
     id: 'gallery-1',
