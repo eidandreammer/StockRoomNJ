@@ -8,7 +8,11 @@ import {
   itemTypes,
   nextItemSequence,
 } from './itemTypes'
-import { createProductImagePreview, imageValidationError } from './productImages'
+import {
+  BULK_PRODUCT_IMAGE_ACCEPT,
+  bulkProductImageValidationError,
+  prepareBulkProductImage,
+} from './bulkProductImages'
 import { shopCategories } from './shopCatalog'
 import { getFriendlyErrorMessage } from './friendlyErrors'
 
@@ -309,7 +313,7 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
     let firstError = ''
 
     files.forEach((file) => {
-      const validationError = imageValidationError(file)
+      const validationError = bulkProductImageValidationError(file)
 
       if (validationError) {
         rejectedCount += 1
@@ -341,7 +345,7 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
         startPreviewTimer(photo)
 
         try {
-          const { previewUrl } = await createProductImagePreview(photo.file)
+          const { previewUrl, uploadFile } = await prepareBulkProductImage(photo.file)
           const previewDimensions = await loadImageDimensions(previewUrl)
           clearPreviewTimer(photo.id)
 
@@ -362,6 +366,7 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
               currentPhoto.id === photo.id
                 ? {
                     ...currentPhoto,
+                    file: uploadFile,
                     isPreparing: false,
                     previewDimensions,
                     previewError: '',
@@ -876,7 +881,7 @@ function BulkProductCreator({ existingProducts, isSaving, onCancel, onSaveGroups
         <label>
           <span>Upload photos</span>
           <input
-            accept="image/*,.heic,.heif"
+            accept={BULK_PRODUCT_IMAGE_ACCEPT}
             disabled={isSaving}
             multiple
             type="file"

@@ -4,7 +4,6 @@ import {
   createUserWithEmailAndPassword,
   getMultiFactorResolver,
   onAuthStateChanged,
-  sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
   signOut,
@@ -13,6 +12,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
+import { apiRequest } from './api'
 import { Icon } from './SiteChrome'
 import FriendlyAlert from './FriendlyAlert'
 
@@ -224,7 +224,10 @@ export default function AccountDrawer({ isOpen, onClose }) {
         setProfileName(nameInput.trim())
         setStatus('idle')
       } else if (authMode === 'forgot') {
-        await sendPasswordResetEmail(auth, emailInput.trim())
+        await apiRequest('/api/auth/password-reset', {
+          method: 'POST',
+          body: JSON.stringify({ email: emailInput.trim() })
+        })
         setStatus('success')
         setMessage('Password reset email sent! Check your inbox.')
       }

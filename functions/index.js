@@ -118,6 +118,26 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
 }
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function appBaseUrl() {
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL.replace(/\/$/, '')
+  }
+
+  if (process.env.STRIPE_SUCCESS_URL) {
+    try {
+      return new URL(process.env.STRIPE_SUCCESS_URL).origin
+    } catch (error) {
+      console.error('Invalid STRIPE_SUCCESS_URL while building password reset link:', error)
+    }
+  }
+
+  return 'https://stockroomnj.com'
+}
+
 export function getGuestTokenSecret() {
   const secret = process.env.GUEST_TOKEN_SECRET || ''
 
@@ -237,6 +257,19 @@ async function applyGuestAgreementRateLimit(request, userId, email) {
 
   if (ip) {
     limits.unshift({ key: `legal-ip:${ip}`, maxRequests: 20, message: 'Too many agreement requests. Please wait a moment.', type: 'legal-ip' })
+  }
+
+  await consumeRateLimits(limits)
+}
+
+async function applyPasswordResetRateLimit(request, email) {
+  const ip = requestIp(request)
+  const limits = [
+    { key: `password-reset-email:${email}`, maxRequests: 3, message: 'Too many password reset requests. Please wait a moment.', type: 'password-reset-email' },
+  ]
+
+  if (ip) {
+    limits.unshift({ key: `password-reset-ip:${ip}`, maxRequests: 10, message: 'Too many password reset requests. Please wait a moment.', type: 'password-reset-ip' })
   }
 
   await consumeRateLimits(limits)
@@ -2310,7 +2343,74 @@ export async function handleExtendDeadline(request, response) {
   sendJson(response, 200, { success: true, orderId })
 }
 
+export async function handlePasswordResetRequest(request, response) {
+  const email = normalizeEmail(body(request).email)
+
+  if (!isValidEmail(email)) {
+    throw requestError('A valid email address is required.', 400)
+  }
+
+  await applyPasswordResetRateLimit(request, email)
+
+  let user
+  try {
+    user = await admin.auth().getUserByEmail(email)
+  } catch (error) {
+    if (error?.code === 'auth/user-not-found' || error?.errorInfo?.code === 'auth/user-not-found') {
+      sendJson(response, 200, { success: true })
+      return
+    }
+
+    console.error('Failed to look up password reset account:', error)
+    throw requestError('Unable to process the password reset request.', 500)
+  }
+
+  let resetLink
+  try {
+    resetLink = await admin.auth().generatePasswordResetLink(email, {
+      url: appBaseUrl(),
+      handleCodeInApp: false,
+    })
+  } catch (error) {
+    console.error('Failed to generate Firebase password reset link:', error)
+    sendJson(response, 200, { success: true })
+    return
+  }
+
+  let name = user.displayName || 'Collector'
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get()
+    if (userDoc.exists) {
+      name = userDoc.data()?.displayName || name
+    }
+  } catch (error) {
+    console.error(`Failed to load profile for password reset user ${user.uid}:`, error)
+  }
+
+  try {
+    await sendEmail({
+      to: email,
+      category: 'security',
+      templateName: 'password_reset',
+      data: {
+        name,
+        resetLink,
+        expiresMinutes: 60,
+      },
+      metadata: {
+        userId: user.uid,
+        purpose: 'password_reset',
+      },
+    })
+  } catch (error) {
+    console.error(`Failed to send password reset email for user ${user.uid}:`, error)
+  }
+
+  sendJson(response, 200, { success: true })
+}
+
 const routes = {
+  'POST /api/auth/password-reset': handlePasswordResetRequest,
   'GET /api/legal/active': handleActiveLegal,
   'GET /api/legal/check-consent': handleCheckConsent,
   'POST /api/legal/agree': handleAgree,

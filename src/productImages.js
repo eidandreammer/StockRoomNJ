@@ -3,6 +3,9 @@ import { storage } from './firebase'
 
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const FULL_IMAGE_QUALITY = 0.9
+const UPLOAD_IMAGE_QUALITY = 0.84
+const UPLOAD_MAX_DIMENSION = 2560
+const UPLOAD_CONCURRENCY = 3
 const HEIC_EXTENSION_PATTERN = /\.(heic|heif)$/i
 const IMAGE_EXTENSION_PATTERN = /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i
 const IMAGE_MIME_TYPES_BY_EXTENSION = {
@@ -16,6 +19,9 @@ const IMAGE_MIME_TYPES_BY_EXTENSION = {
   webp: 'image/webp',
 }
 const HEIC_MIME_TYPES = new Set(['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'])
+// Keep formats with animation or transparency untouched. Product photos from
+// cameras (JPEG/HEIC) are the large files where resizing has the highest payoff.
+const RESIZABLE_IMAGE_MIME_TYPES = new Set(['image/jpeg'])
 const HEIC_CONVERSION_TIMEOUT_MS = 20000
 const PREVIEW_IMAGE_QUALITY = 0.72
 const PREVIEW_MAX_DIMENSION = 360
@@ -193,13 +199,34 @@ async function convertHeicToJpeg(file, options = {}) {
 }
 
 export async function prepareProductImageFile(file) {
-  return isHeicImage(file)
-    ? withTimeout(
-        convertHeicToJpeg(file),
-        HEIC_CONVERSION_TIMEOUT_MS,
-        `HEIC conversion took too long for ${file.name}. Try exporting it as a JPEG first.`,
-      )
-    : file
+  if (isHeicImage(file)) {
+    return withTimeout(
+      convertHeicToJpeg(file, {
+        maxDimension: UPLOAD_MAX_DIMENSION,
+        quality: UPLOAD_IMAGE_QUALITY,
+      }),
+      HEIC_CONVERSION_TIMEOUT_MS,
+      `HEIC conversion took too long for ${file.name}. Try exporting it as a JPEG first.`,
+    )
+  }
+
+  const contentType = productImageContentType(file)
+  if (!RESIZABLE_IMAGE_MIME_TYPES.has(contentType)) {
+    return file
+  }
+
+  try {
+    const optimizedFile = await convertBrowserReadableImageToJpeg(file, {
+      maxDimension: UPLOAD_MAX_DIMENSION,
+      quality: UPLOAD_IMAGE_QUALITY,
+    })
+
+    // Re-encoding small or already optimized images can make them larger.
+    return optimizedFile.size < file.size ? optimizedFile : file
+  } catch {
+    // Uploading the original remains a safe fallback when browser decoding fails.
+    return file
+  }
 }
 
 export async function createProductImagePreview(file) {
@@ -269,15 +296,27 @@ export async function uploadProductImage(file, productId, sortOrder = 0) {
 }
 
 export async function uploadProductImages(files, productId) {
-  const uploadedImages = []
+  const uploadedImages = new Array(files.length)
+  let nextIndex = 0
 
-  try {
-    for (const [index, file] of files.entries()) {
-      uploadedImages.push(await uploadProductImage(file, productId, index))
+  const worker = async () => {
+    while (nextIndex < files.length) {
+      const index = nextIndex
+      nextIndex += 1
+      uploadedImages[index] = await uploadProductImage(files[index], productId, index)
     }
-  } catch (error) {
+  }
+
+  const workers = Array.from(
+    { length: Math.min(UPLOAD_CONCURRENCY, files.length) },
+    () => worker(),
+  )
+  const results = await Promise.allSettled(workers)
+  const failedWorker = results.find((result) => result.status === 'rejected')
+
+  if (failedWorker) {
     await deleteStoredImages(uploadedImages)
-    throw error
+    throw failedWorker.reason
   }
 
   return uploadedImages
@@ -291,6 +330,7 @@ export async function deleteStoredImages(imagesOrPaths) {
   const imagePaths = Array.from(
     new Set(
       imagesOrPaths
+        .filter(Boolean)
         .map((image) => (typeof image === 'string' ? image : image?.imagePath))
         .filter(Boolean),
     ),

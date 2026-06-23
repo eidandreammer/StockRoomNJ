@@ -19,6 +19,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocFromCache,
   onSnapshot,
   serverTimestamp,
   updateDoc,
@@ -46,6 +47,7 @@ const TOTP_DISPLAY_NAME = 'Authenticator app'
 const RECAPTCHA_SCRIPT_ID = 'stockroom-recaptcha-script'
 const RECAPTCHA_SCRIPT_SRC = 'https://www.google.com/recaptcha/api.js?render=explicit'
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY?.trim()
+const ADMIN_ACCESS_CACHE_PREFIX = 'admin_access_verified_'
 const LOCALHOST_NAMES = new Set(['localhost', '::1', '[::1]'])
 const isLocalhost = LOCALHOST_NAMES.has(globalThis.location?.hostname) ||
   /^127(?:\.\d{1,3}){3}$/.test(globalThis.location?.hostname ?? '')
@@ -1081,7 +1083,10 @@ function AdminApp() {
       return undefined
     }
 
-    return onAuthStateChanged(auth, async (nextUser) => {
+    let verificationSequence = 0
+    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+      const currentVerification = ++verificationSequence
+
       if (!nextUser) {
         setUser(null)
         setAuthError('')
@@ -1110,18 +1115,53 @@ function AdminApp() {
       setAuthError('')
 
       try {
-        const adminDoc = await getDoc(doc(db, 'admins', nextUser.uid))
+        const adminRef = doc(db, 'admins', nextUser.uid)
+        const authorizedState = (hasTotpFactor(nextUser) || isUsingFirebaseEmulators)
+          ? 'authorized'
+          : 'mfa-enrollment-required'
+
+        if (localStorage.getItem(ADMIN_ACCESS_CACHE_PREFIX + nextUser.uid) === 'true') {
+          setAuthState(authorizedState)
+        }
+
+        // Returning admins can enter immediately from Firestore's local cache. The
+        // server read below still revalidates access, and security rules remain the
+        // authority for every dashboard query and write.
+        try {
+          const cachedAdminDoc = await getDocFromCache(adminRef)
+          if (cachedAdminDoc.exists() && currentVerification === verificationSequence) {
+            setAuthState(authorizedState)
+          }
+        } catch {
+          // A first login has no cached admin record and waits for server verification.
+        }
+
+        const adminDoc = await getDoc(adminRef)
+        if (currentVerification !== verificationSequence) {
+          return
+        }
+
         if (!adminDoc.exists()) {
+          localStorage.removeItem(ADMIN_ACCESS_CACHE_PREFIX + nextUser.uid)
           setAuthState('unauthorized')
           return
         }
 
-        setAuthState((hasTotpFactor(nextUser) || isUsingFirebaseEmulators) ? 'authorized' : 'mfa-enrollment-required')
+        localStorage.setItem(ADMIN_ACCESS_CACHE_PREFIX + nextUser.uid, 'true')
+        setAuthState(authorizedState)
       } catch (error) {
+        if (currentVerification !== verificationSequence) {
+          return
+        }
         setAuthError(getFriendlyErrorMessage(error, 'admin'))
         setAuthState('verification-error')
       }
     })
+
+    return () => {
+      verificationSequence += 1
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
