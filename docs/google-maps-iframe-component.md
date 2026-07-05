@@ -13,6 +13,8 @@ Build the map in this order:
 
 Do not recreate only the iframe fallback when the goal is to match the normal production experience.
 
+The map must not show Google's standard place details compact container, and it must not show the standard red Google place label/pin text for `BUSINESS_NAME_HERE`.
+
 ## Tech Stack Contract
 
 - **Primary map:** Google Maps JavaScript API, loaded with the bootstrap loader or a callback script URL.
@@ -32,6 +34,8 @@ The successful API map is interactive:
 - The marker opens the real Google Maps place URL on click, Enter, or Space.
 - The address banner stays pinned to the top-left of the panel and does not block map gestures.
 - Default Google UI is hidden except for the zoom control.
+- Google's standard place details compact container is not visible.
+- The standard red Google place name label/pin text for `BUSINESS_NAME_HERE` is not visible.
 - `gestureHandling: "cooperative"` prevents the map from hijacking normal page scroll.
 
 The iframe fallback is intentionally different:
@@ -39,6 +43,7 @@ The iframe fallback is intentionally different:
 - It is a branded non-interactive backdrop.
 - It uses `pointer-events: none` and `tabIndex="-1"` by default.
 - Its centered branded marker is fixed HTML and cannot follow map camera movement.
+- It must not expose Google's standard place details compact container or the red Google place name label/pin text for `BUSINESS_NAME_HERE`.
 - Do not enable iframe panning/zooming unless you accept that the iframe native pin can drift away from the fixed overlay.
 
 ## Shared Location Config
@@ -751,6 +756,8 @@ Required fallback behavior:
 - The iframe uses `tabIndex={-1}` in React or `tabindex="-1"` in HTML.
 - The branded marker is a normal link above the iframe.
 - The banner uses `pointer-events: none`.
+- The fallback presentation must not show Google's standard place details compact container.
+- The fallback presentation must not show the standard red Google place name label/pin text for `BUSINESS_NAME_HERE`.
 - Do not add wheel, touch, drag, or zoom listeners to the iframe fallback.
 
 React iframe fallback shape:
@@ -774,6 +781,8 @@ React iframe fallback shape:
 - The marker opens Google Maps on click, Enter, and Space.
 - The banner stays in the top-left and does not block map movement.
 - The zoom control is visible; other default Google UI is hidden.
+- Google's standard place details compact container is not visible.
+- The standard red Google place name label/pin text for `BUSINESS_NAME_HERE` is not visible.
 - Normal page scrolling is not hijacked because `gestureHandling` is `"cooperative"`.
 - With no key, invalid key, blocked script, or runtime error, the iframe fallback appears.
 - In fallback mode, the iframe is non-interactive and page scroll remains smooth.
