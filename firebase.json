@@ -6,6 +6,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "stockroomnj-10e7d",
     "public": "dist",
     "cleanUrls": true,
     "ignore": [
