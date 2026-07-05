@@ -2354,17 +2354,41 @@ address {
   background: var(--color-surface);
 }
 
+.google-map-embed {
+  --map-embed-accent: var(--color-accent);
+  --map-embed-accent-strong: #0046cc;
+  --map-embed-banner-background: rgba(255, 255, 255, 0.94);
+  --map-embed-banner-border: rgba(17, 17, 17, 0.12);
+  --map-embed-banner-text: var(--color-nav-royal-blue);
+  --map-embed-banner-muted: var(--color-muted);
+  --map-embed-marker-background: var(--color-bg);
+  --map-embed-marker-halo: rgba(0, 87, 255, 0.2);
+  --map-embed-marker-shadow: rgba(0, 87, 255, 0.35);
+  --map-embed-marker-shadow-hover: rgba(0, 87, 255, 0.45);
+  --map-embed-filter: grayscale(1) sepia(0.3) saturate(1.8) hue-rotate(200deg) brightness(0.95) contrast(1.05);
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.google-map-embed__frame,
 .map-frame {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   border: 0;
-  /* Grayscale + blue-shift sepia to style the map in coin gray and royal blue */
-  filter: grayscale(1) sepia(0.3) saturate(1.8) hue-rotate(200deg) brightness(0.95) contrast(1.05);
+  filter: var(--map-embed-filter);
+  pointer-events: none;
   transition: filter 0.3s ease;
 }
 
+.google-map-embed__frame--interactive {
+  pointer-events: auto;
+}
+
+.google-map-embed__banner,
 .map-store-banner {
   position: absolute;
   top: 18px;
@@ -2373,9 +2397,9 @@ address {
   display: grid;
   gap: 2px;
   max-width: min(calc(100% - 36px), 360px);
-  border: 1px solid rgba(17, 17, 17, 0.12);
+  border: 1px solid var(--map-embed-banner-border, rgba(17, 17, 17, 0.12));
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--map-embed-banner-background, rgba(255, 255, 255, 0.94));
   color: var(--color-text);
   padding: 11px 14px;
   text-decoration: none;
@@ -2384,20 +2408,23 @@ address {
   pointer-events: none;
 }
 
+.google-map-embed__banner strong,
 .map-store-banner strong {
-  color: var(--color-nav-royal-blue);
+  color: var(--map-embed-banner-text, var(--color-nav-royal-blue));
   font-size: 0.98rem;
   font-weight: 900;
   line-height: 1.1;
 }
 
+.google-map-embed__banner span,
 .map-store-banner span {
-  color: var(--color-muted);
+  color: var(--map-embed-banner-muted, var(--color-muted));
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.25;
 }
 
+.google-map-embed__marker,
 .custom-map-marker {
   position: absolute;
   top: 50%;
@@ -2417,10 +2444,10 @@ address {
 .marker-badge {
   width: 48px;
   height: 48px;
-  background: var(--color-bg);
-  border: 3px solid var(--color-accent);
+  background: var(--map-embed-marker-background, var(--color-bg));
+  border: 3px solid var(--map-embed-accent, var(--color-accent));
   border-radius: 50%;
-  box-shadow: 0 8px 24px rgba(0, 87, 255, 0.35), 0 0 0 4px rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 24px var(--map-embed-marker-shadow, rgba(0, 87, 255, 0.35)), 0 0 0 4px rgba(255, 255, 255, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2433,8 +2460,8 @@ address {
 .custom-map-marker-js:hover .marker-badge,
 .custom-map-marker-js:focus-visible .marker-badge {
   transform: scale(1.12);
-  border-color: #0046cc;
-  box-shadow: 0 12px 32px rgba(0, 87, 255, 0.45), 0 0 0 6px rgba(255, 255, 255, 0.9);
+  border-color: var(--map-embed-accent-strong, #0046cc);
+  box-shadow: 0 12px 32px var(--map-embed-marker-shadow-hover, rgba(0, 87, 255, 0.45)), 0 0 0 6px rgba(255, 255, 255, 0.9);
 }
 
 .marker-logo {
@@ -2448,7 +2475,7 @@ address {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: rgba(0, 87, 255, 0.2);
+  background: var(--map-embed-marker-halo, rgba(0, 87, 255, 0.2));
   animation: marker-pulse-glow 2.5s infinite ease-out;
 }
 
@@ -3462,4 +3489,3 @@ address {
   height: 20px;
   color: var(--color-muted);
 }
-

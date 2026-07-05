@@ -637,6 +637,22 @@ function SiteFooter({ currentPage, footerRef }) {
             ))}
           </div>
         </div>
+
+        <div className="container bitesites-credit">
+          <a
+            aria-label="Made by Bite Sites"
+            className="bitesites-banner bitesites-banner--light"
+            href="https://bitesites.org"
+            rel="noopener"
+            target="_blank"
+          >
+            <span className="bitesites-banner__eyebrow">Made by</span>
+            <span className="bitesites-banner__mark" aria-hidden="true">
+              <span className="bitesites-banner__logo bitesites-banner__logo--rest"></span>
+              <span className="bitesites-banner__logo bitesites-banner__logo--hover"></span>
+            </span>
+          </a>
+        </div>
       </div>
     </footer>
   )

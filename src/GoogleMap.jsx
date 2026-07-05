@@ -6,6 +6,7 @@ import {
   googleMapsPlaceUrl,
   googleMapEmbedUrl,
 } from './siteConfig'
+import GoogleMapsIframe from './GoogleMapsIframe'
 
 function MapStoreBanner() {
   return (
@@ -228,30 +229,16 @@ function GoogleMap() {
 
   if (hasError) {
     return (
-      <div className="map-panel-wrapper" style={{ position: 'relative', width: '100%', height: '100%' }}>
-        <iframe
-          allowFullScreen
-          className="map-frame"
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          src={googleMapEmbedUrl}
-          title="Google Map for StockRoom NJ"
-        />
-        <MapStoreBanner />
-        <a
-          href={googleMapsPlaceUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="custom-map-marker"
-          aria-label="Open The Stock Room NJ on Google Maps"
-          title="Open The Stock Room NJ on Google Maps"
-        >
-          <div className="marker-pulse" />
-          <div className="marker-badge">
-            <img src={footerLogo} alt="Stock Room Logo" className="marker-logo" />
-          </div>
-        </a>
-      </div>
+      <GoogleMapsIframe
+        address={storeAddress}
+        embedUrl={googleMapEmbedUrl}
+        logoAlt="Stock Room Logo"
+        logoSrc={footerLogo}
+        markerLabel="Open The Stock Room NJ on Google Maps"
+        placeUrl={googleMapsPlaceUrl}
+        storeName="The Stock Room NJ"
+        title="Google Map for StockRoom NJ"
+      />
     )
   }
 
