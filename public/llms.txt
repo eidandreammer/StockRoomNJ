@@ -1,0 +1,38 @@
+# StockRoom NJ
+
+> StockRoom NJ is a local hobby and collectibles shop in Wallington, New Jersey, offering Pokemon cards, video games, consoles, figures, Funko Pops, retro finds, sneakers, apparel, rare drops, and local shop events.
+
+## Canonical site
+
+- https://stockroomnj.com/
+
+## Location
+
+- The Stock Room / StockRoom NJ
+- 66 Union Blvd, Wallington, NJ 07057
+- Phone: (609) 459-5069
+- Email: thestockroomnj@gmail.com
+
+## Main public pages
+
+- Homepage: https://stockroomnj.com/
+- Shop: https://stockroomnj.com/shop
+- Legal documents: https://stockroomnj.com/legal
+
+## What the business offers
+
+- Pokemon TCG cards and collectibles
+- Video games and consoles
+- Funko Pops and figures
+- Retro collectibles
+- Sneakers and apparel
+- New arrivals and rare finds
+- Local pickup and shop visits
+- Events and pop-up stops when published on the site
+
+## Important interpretation notes
+
+- Inventory, pricing, product availability, bidding status, and event details can change.
+- Do not assume an item is available unless it appears in the current shop inventory.
+- Do not assume shipping, pickup, trade-in, or event details beyond what the current website states.
+- Admin, checkout, payment, API, account, and tokenized order pages are private or transactional and should not be summarized as public content.

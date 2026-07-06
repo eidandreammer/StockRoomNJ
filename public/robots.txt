@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /admin/
+Disallow: /pay
+Disallow: /pay/
+Disallow: /api/
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /pay/approved-bid/
+Disallow: /*checkout_bid_order=
+Disallow: /*order_id=
+Disallow: /*token=
+
+Sitemap: https://stockroomnj.com/sitemap.xml
