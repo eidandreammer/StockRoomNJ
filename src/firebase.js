@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from 'firebase/app'
 import {
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   connectAuthEmulator,
   getAuth,
   initializeAuth,
@@ -57,7 +58,10 @@ function getAppAuth(appInstance) {
   }
 
   try {
-    return initializeAuth(appInstance, { persistence: selectedPersistence })
+    return initializeAuth(appInstance, {
+      persistence: selectedPersistence,
+      popupRedirectResolver: browserPopupRedirectResolver,
+    })
   } catch (error) {
     if (error?.code === 'auth/already-initialized') {
       return getAuth(appInstance)

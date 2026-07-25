@@ -123,8 +123,16 @@ export function getFriendlyAuthError(error, context = 'customer') {
       return 'Too many attempts. Wait a little, then try again or reset your password.'
     case 'auth/network-request-failed':
       return 'Network issue. Check your connection and try again.'
+    case 'auth/operation-not-allowed':
+      return 'Google sign-in is not enabled yet. Enable the Google provider in Firebase Authentication and try again.'
+    case 'auth/unauthorized-domain':
+      return 'This domain is not authorized for Google sign-in. Add it in Firebase Authentication authorized domains.'
+    case 'auth/popup-blocked':
+      return 'Your browser blocked the Google sign-in popup. Allow popups for this site and try again.'
     case 'auth/popup-closed-by-user':
       return 'Sign-in was closed before it finished. Try again.'
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with this email using another sign-in method. Sign in with email first.'
     case 'auth/requires-recent-login':
       return 'For security, sign in again before making this change.'
     case 'auth/multi-factor-auth-required':

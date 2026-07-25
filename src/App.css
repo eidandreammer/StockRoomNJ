@@ -3225,6 +3225,11 @@ address {
   gap: 16px;
 }
 
+.google-signin-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .forgot-password-link {
   align-self: flex-start;
   background: none;

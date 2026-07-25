@@ -3,9 +3,11 @@ import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   getMultiFactorResolver,
+  GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   TotpMultiFactorGenerator,
   updateProfile,
@@ -23,6 +25,11 @@ const states = [
   'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ]
+
+const googleProvider = new GoogleAuthProvider()
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+})
 
 export default function AccountDrawer({ isOpen, onClose }) {
   const [user, setUser] = useState(null)
@@ -191,6 +198,54 @@ export default function AccountDrawer({ isOpen, onClose }) {
   }
 
   // Handle Authentication
+  const handleGoogleSignIn = async () => {
+    setStatus('saving')
+    setMessage('')
+    setErrorObject(null)
+
+    try {
+      await setPersistence(auth, browserLocalPersistence)
+      const userCredential = await signInWithPopup(auth, googleProvider)
+      const googleUser = userCredential.user
+      const userDocRef = doc(db, 'users', googleUser.uid)
+      const userDocSnap = await getDoc(userDocRef)
+
+      if (!userDocSnap.exists()) {
+        await setDoc(userDocRef, {
+          displayName: googleUser.displayName || '',
+          email: googleUser.email || '',
+          phone: '',
+          shippingAddress: { street: '', city: '', state: '', zip: '' },
+          billingAddress: { street: '', city: '', state: '', zip: '', sameAsShipping: true },
+          notifications: { biddingUpdates: true, newsletter: false, purchaseReceipts: true },
+          createdAt: new Date().toISOString()
+        })
+      }
+
+      setStatus('idle')
+    } catch (err) {
+      console.error(err)
+      if (err?.code === 'auth/multi-factor-auth-required') {
+        const resolver = getMultiFactorResolver(auth, err)
+        const totpHint = resolver.hints.find(
+          (hint) => hint.factorId === TotpMultiFactorGenerator.FACTOR_ID
+        )
+        if (!totpHint) {
+          setStatus('error')
+          setErrorObject(new Error('Authenticator app verification is required but not configured.'))
+          return
+        }
+        setMfaResolver(resolver)
+        setMfaCode('')
+        setStatus('idle')
+        setMessage('')
+        return
+      }
+      setStatus('error')
+      setErrorObject(`Google sign-in failed${err?.code ? ` (${err.code})` : ''}: ${err?.message || 'Unknown error'}`)
+    }
+  }
+
   const handleAuthSubmit = async (e) => {
     e.preventDefault()
     setStatus('saving')
@@ -499,6 +554,17 @@ export default function AccountDrawer({ isOpen, onClose }) {
                       Create Account
                     </button>
                   </div>
+                )}
+
+                {authMode !== 'forgot' && (
+                  <button
+                    type="button"
+                    className="button secondary google-signin-btn"
+                    onClick={handleGoogleSignIn}
+                    disabled={status === 'saving'}
+                  >
+                    Continue with Google
+                  </button>
                 )}
 
                 <form onSubmit={handleAuthSubmit} className="account-form">
