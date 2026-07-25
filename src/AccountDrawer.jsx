@@ -224,7 +224,12 @@ export default function AccountDrawer({ isOpen, onClose }) {
 
       setStatus('idle')
     } catch (err) {
-      console.error(err)
+      console.error('Google sign-in failed:', {
+        code: err?.code,
+        message: err?.message,
+        customData: err?.customData,
+        name: err?.name,
+      })
       if (err?.code === 'auth/multi-factor-auth-required') {
         const resolver = getMultiFactorResolver(auth, err)
         const totpHint = resolver.hints.find(
@@ -242,7 +247,7 @@ export default function AccountDrawer({ isOpen, onClose }) {
         return
       }
       setStatus('error')
-      setErrorObject(`Google sign-in failed${err?.code ? ` (${err.code})` : ''}: ${err?.message || 'Unknown error'}`)
+      setErrorObject(err)
     }
   }
 

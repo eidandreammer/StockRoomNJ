@@ -127,6 +127,8 @@ export function getFriendlyAuthError(error, context = 'customer') {
       return 'Google sign-in is not enabled yet. Enable the Google provider in Firebase Authentication and try again.'
     case 'auth/unauthorized-domain':
       return 'This domain is not authorized for Google sign-in. Add it in Firebase Authentication authorized domains.'
+    case 'auth/internal-error':
+      return 'Google sign-in is not fully configured for this domain yet. Check the OAuth redirect URI and try again.'
     case 'auth/popup-blocked':
       return 'Your browser blocked the Google sign-in popup. Allow popups for this site and try again.'
     case 'auth/popup-closed-by-user':
