@@ -32,6 +32,8 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
 
 1. Create a Firebase project and register a web app.
 2. Enable Firestore, Firebase Storage, and Email/Password authentication.
+   Also enable the Google authentication provider if customers should be able
+   to sign in with Google accounts from the account drawer.
 3. Set up a Postmark account and configure your sending signatures and custom sending domain.
 4. **Postmark DNS Checklist**:
    - **SPF**: Add `v=spf1 a mx include:spf.mtasv.net ~all` or merge `include:spf.mtasv.net` into your existing SPF record.
@@ -55,8 +57,10 @@ agreement endpoints match the deployed Firebase Hosting rewrites.
    `POSTMARK_SERVER_TOKEN` must remain configured as a Firebase Functions secret;
    `EMAIL_FROM` and `EMAIL_REPLY_TO` are normal runtime environment variables.
    Authenticate the Postmark sender/domain used by `EMAIL_FROM` to improve delivery.
-6. Add `stockroomnj.com` to Firebase Authentication's authorized domains so generated
-   password reset links can return to the production app.
+6. Add `stockroomnj.com`, `stockroomnj-10e7d.firebaseapp.com`,
+   `stockroomnj-10e7d.web.app`, and local development hosts such as
+   `localhost` to Firebase Authentication's authorized domains so password
+   reset links and Google sign-in can return to the app.
 7. Create a Google reCAPTCHA v2 checkbox site key for each deployed dashboard domain.
 8. Create each staff account in Firebase Console under Authentication.
 9. Add a Firestore document at `admins/{uid}` for each approved staff user. The document
@@ -133,6 +137,13 @@ drafts and must be published explicitly.
 - `npm run deploy:all`: build the Vite app and deploy Hosting, Functions, Firestore rules, and Storage rules.
 - `npm run verify`: verify the project by running ESLint, tests, and a production build.
 - `npm run release`: verify the project and deploy Hosting + Functions.
+
+## Documentation
+
+- `README.md`: primary setup, deployment, and workflow reference.
+- `docs/website-documentation.md`: complete website architecture and feature documentation,
+  including the customer Google sign-in implementation.
+- `docs/google-maps-iframe-component.md`: Google Maps JavaScript API map and iframe fallback guide.
 
 ## Version Control and Firebase Deployment Workflow
 
